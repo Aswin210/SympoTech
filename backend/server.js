@@ -25,3 +25,7 @@ app.post("/register", (req, res) => {
 app.listen(5000, () => {
   console.log("Server running on port 5000");
 });
+
+db.query("SELECT 1", (err, result) => {
+  console.log(result);
+});
