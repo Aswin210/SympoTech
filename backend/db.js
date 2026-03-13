@@ -3,16 +3,16 @@ const mysql = require("mysql2");
 const db = mysql.createConnection({
   host: "localhost",
   user: "root",
-  password: "root",
+  password: "root",      // put your MySQL password if you have one
   database: "college_events"
 });
 
 db.connect((err) => {
   if (err) {
-    console.error("❌ Database connection failed:", err);
-    process.exit(1);
+    console.log("❌ MySQL Connection Failed");
+    console.log(err);
   } else {
-    console.log("✅ Connected to MySQL");
+    console.log("✅ MySQL Connected");
   }
 });
 
