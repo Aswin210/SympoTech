@@ -1,147 +1,98 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
 function QRScanner() {
-
   const scannerRef = useRef(null);
-  const scannerRunning = useRef(false);
-
+  const [isScanning, setIsScanning] = useState(false);
   const [student, setStudent] = useState(null);
   const [status, setStatus] = useState("");
+  const [message, setMessage] = useState("");
 
-  useEffect(() => {
+  const startScanner = async () => {
+    if (!scannerRef.current) {
+      scannerRef.current = new Html5Qrcode("reader");
+    }
 
-    const startScanner = async () => {
+    try {
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        { fps: 25, qrbox: 250 },
+        async (decodedText) => {
+          // Pause scanning to prevent multiple triggers
+          await stopScanner();
+          handleAttendance(decodedText);
+        }
+      );
+      setIsScanning(true);
+      setStatus("");
+      setStudent(null);
+    } catch (err) {
+      console.error("Failed to start scanner", err);
+    }
+  };
 
-      try {
+  const stopScanner = async () => {
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      await scannerRef.current.stop();
+      setIsScanning(false);
+    }
+  };
 
-        const scanner = new Html5Qrcode("reader");
-        scannerRef.current = scanner;
+  const handleAttendance = async (decodedText) => {
+    try {
+      // 1. Verify User
+      const verify = await fetch(`http://localhost:5000/verify-user/${decodedText}`);
+      const verifyData = await verify.json();
 
-        await scanner.start(
-          { facingMode: "environment" },
-          {
-            fps: 15,
-            qrbox: 250
-          },
-
-          async (decodedText) => {
-
-            console.log("Scanned:", decodedText);
-
-            try {
-
-              const verify = await fetch(
-                `http://localhost:5000/verify-user/${decodedText}`
-              );
-
-              const verifyData = await verify.json();
-
-              if (!verifyData.success) {
-
-                setStatus("notfound");
-                return;
-
-              }
-
-              setStudent(verifyData.user);
-
-              const attendance = await fetch(
-                `http://localhost:5000/mark-attendance/${decodedText}`,
-                { method: "PUT" }
-              );
-
-              const attendanceData = await attendance.json();
-
-              if (attendanceData.success) {
-
-                setStatus("success");
-
-              } else {
-
-                setStatus("already");
-
-              }
-
-            } catch (err) {
-
-              console.log(err);
-              setStatus("servererror");
-
-            }
-
-          }
-
-        );
-
-        scannerRunning.current = true;
-
-      } catch (error) {
-
-        console.log("Scanner start error:", error);
-
+      if (!verifyData.success) {
+        setStatus("notfound");
+        setMessage("User not found in database.");
+        return;
       }
 
-    };
+      setStudent(verifyData.user);
 
-    startScanner();
+      // 2. Mark Attendance
+      const attendance = await fetch(`http://localhost:5000/mark-attendance/${decodedText}`, {
+        method: "PUT",
+      });
+      const attendanceData = await attendance.json();
 
-    return () => {
-
-      if (scannerRef.current && scannerRunning.current) {
-
-        scannerRef.current.stop()
-          .then(() => {
-            scannerRunning.current = false;
-          })
-          .catch(() => {});
-
+      if (attendanceData.success) {
+        setStatus("success");
+        setMessage(`Attendance marked at ${new Date().toLocaleTimeString()}`);
+      } else {
+        setStatus("already");
+        setMessage("Attendance already recorded for this user.");
       }
-
-    };
-
-  }, []);
+    } catch (err) {
+      setStatus("servererror");
+      setMessage("Server connection error.");
+    }
+  };
 
   return (
-
     <div style={{ textAlign: "center", marginTop: "40px" }}>
-
       <h2>QR Attendance Scanner</h2>
 
-      <div
-        id="reader"
-        style={{
-          width: "350px",
-          margin: "auto",
-          border: "3px solid black"
-        }}
-      ></div>
+      <div style={{ margin: "20px" }}>
+        {!isScanning ? (
+          <button onClick={startScanner}>Start Scanner</button>
+        ) : (
+          <button onClick={stopScanner}>Stop Scanner</button>
+        )}
+      </div>
+
+      <div id="reader" style={{ width: "350px", margin: "auto" }}></div>
 
       {student && (
-
         <div style={{ marginTop: "20px" }}>
-
           <h3>{student.name}</h3>
           <p>{student.college_name}</p>
-
-          {status === "success" && (
-            <h2 style={{ color: "green" }}>✔ Attendance Marked</h2>
-          )}
-
-          {status === "already" && (
-            <h2 style={{ color: "red" }}>Already Scanned</h2>
-          )}
-
-          {status === "notfound" && (
-            <h2 style={{ color: "orange" }}>User Not Found</h2>
-          )}
-
+          <h3 style={{ color: status === "success" ? "green" : "red" }}>{message}</h3>
         </div>
-
       )}
-
     </div>
-
   );
 }
 

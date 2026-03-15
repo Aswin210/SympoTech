@@ -14,6 +14,8 @@ function Navbar() {
         <Link to="/" style={styles.link}>Events</Link>
 
         <a href="/admin-login">Admin Login</a>
+
+        <Link to="/feedback" style={styles.link}>FeedBack</Link>
           
         
       </div>

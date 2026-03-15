@@ -19,288 +19,365 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 ========================= */
 
 app.get("/", (req, res) => {
-  res.json({ message: "Backend working successfully 🚀" });
+  res.json({
+    success: true,
+    message: "Backend working successfully 🚀"
+  });
 });
 
-/* =========================
-   USER REGISTRATION
-========================= */
+/* =================================================
+   SUBMIT FEEDBACK
+================================================= */
 
-app.post("/register", (req, res) => {
-  const { name, college_name, phone, email, event_id, photo } = req.body;
+app.post("/feedback", (req, res) => {
 
-  if (!name || !college_name || !phone || !email || !event_id) {
-    return res.json({
+  const { user_id, event_id, rating, comment } = req.body;
+
+  console.log("Incoming Feedback:", req.body);
+
+  if (!user_id || !event_id || !rating) {
+    return res.status(400).json({
       success: false,
-      message: "All fields required",
+      message: "Missing required fields"
     });
   }
 
-  /* CHECK DUPLICATE USER */
+  const sql = `
+    INSERT INTO feedback (user_id, event_id, rating, comment)
+    VALUES (?, ?, ?, ?)
+  `;
 
-  const checkUser =
-    "SELECT * FROM users WHERE phone=? OR email=?";
+  db.query(
+    sql,
+    [user_id, event_id, rating, comment || ""],
+    (err, result) => {
+
+      if (err) {
+        console.log("Database Error:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Database insert failed"
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Feedback submitted successfully"
+      });
+
+    }
+  );
+
+});
+
+/* =================================================
+   GET EVENT FEEDBACK
+================================================= */
+
+app.get("/feedback/:eventId", (req, res) => {
+
+  const eventId = req.params.eventId;
+
+  const sql = `
+    SELECT 
+      f.id,
+      f.rating,
+      f.comment,
+      f.created_at,
+      u.name AS user_name
+    FROM feedback f
+    LEFT JOIN users u ON u.id = f.user_id
+    WHERE f.event_id = ?
+    ORDER BY f.created_at DESC
+  `;
+
+  db.query(sql, [eventId], (err, result) => {
+
+    if (err) {
+      console.log("Fetch Feedback Error:", err);
+      return res.status(500).json([]);
+    }
+
+    res.json(result);
+
+  });
+
+});
+
+/* =================================================
+   USER REGISTRATION
+================================================= */
+
+app.post("/register", (req, res) => {
+
+  const { name, college_name, phone, email, event_id, photo } = req.body;
+
+  console.log("REGISTER DATA:", req.body);
+
+  if (!name || !college_name || !phone || !email || !event_id) {
+
+    return res.json({
+      success: false,
+      message: "All fields are required"
+    });
+
+  }
+
+  const checkUser = `
+    SELECT * FROM users 
+    WHERE phone = ? OR email = ?
+  `;
 
   db.query(checkUser, [phone, email], (err, result) => {
+
     if (err) {
-      console.log(err);
+      console.log("User Check Error:", err);
       return res.json({
         success: false,
-        message: "Database error",
+        message: "Database error"
       });
     }
 
     if (result.length > 0) {
+
       return res.json({
         success: false,
-        message: "User already registered",
+        message: "User already registered"
       });
+
     }
 
-    /* INSERT USER */
-
-    const insertUser =
-      "INSERT INTO users(name,college_name,phone,email,event_id,photo) VALUES(?,?,?,?,?,?)";
+    const insertUser = `
+      INSERT INTO users
+      (name, college_name, phone, email, event_id, photo)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
 
     db.query(
       insertUser,
       [name, college_name, phone, email, event_id, photo || ""],
       (err, result) => {
+
         if (err) {
-          console.log(err);
+          console.log("Insert User Error:", err);
           return res.json({
             success: false,
-            message: "Registration failed",
+            message: "Registration failed"
           });
         }
 
         res.json({
           success: true,
+          message: "Registration successful",
           userId: result.insertId,
-          qrData: result.insertId,
+          qrData: result.insertId
         });
+
       }
     );
+
   });
+
 });
 
-/* =========================
+/* =================================================
    VERIFY USER (QR SCAN)
-========================= */
+================================================= */
 
 app.get("/verify-user/:id", (req, res) => {
+
   const id = req.params.id;
 
-  const sql = "SELECT * FROM users WHERE id=?";
+  db.query(
+    "SELECT * FROM users WHERE id=?",
+    [id],
+    (err, result) => {
 
-  db.query(sql, [id], (err, result) => {
-    if (err) {
-      console.log(err);
-      return res.json({ success: false });
-    }
-
-    if (result.length === 0) {
-      return res.json({ success: false });
-    }
-
-    res.json({
-      success: true,
-      user: result[0],
-    });
-  });
-});
-
-/* =========================
-   MARK ATTENDANCE
-========================= */
-
-app.put("/mark-attendance/:id", (req, res) => {
-  const userId = req.params.id;
-
-  console.log("Scanning User:", userId);
-
-  /* GET USER */
-
-  const getUser = "SELECT * FROM users WHERE id=?";
-
-  db.query(getUser, [userId], (err, result) => {
-    if (err) {
-      console.log(err);
-      return res.json({ success: false });
-    }
-
-    if (result.length === 0) {
-      return res.json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    const user = result[0];
-
-    /* PREVENT DUPLICATE SCAN */
-
-    const checkScan =
-      "SELECT * FROM attendance WHERE user_id=?";
-
-    db.query(checkScan, [userId], (err, result) => {
-      if (result.length > 0) {
-        return res.json({
-          success: false,
-          message: "Already scanned",
-        });
+      if (err) {
+        console.log(err);
+        return res.json({ success: false });
       }
 
-      /* INSERT ATTENDANCE */
+      if (result.length === 0) {
 
-      const insertAttendance =
-        "INSERT INTO attendance (user_id,name,event_id,phone,scan_time) VALUES (?,?,?,?,NOW())";
+        return res.json({
+          success: false,
+          message: "User not found"
+        });
 
-      db.query(
-        insertAttendance,
-        [user.id, user.name, user.event_id, user.phone],
-        (err) => {
-          if (err) {
-            console.log(err);
-            return res.json({ success: false });
-          }
+      }
 
-          res.json({
-            success: true,
-            message: "Attendance marked successfully",
-          });
-        }
-      );
-    });
-  });
+      res.json({
+        success: true,
+        user: result[0]
+      });
+
+    }
+  );
+
 });
 
-/* =========================
-   LIVE ATTENDANCE LIST
-========================= */
+/* =================================================
+   MARK ATTENDANCE
+================================================= */
+
+app.put("/mark-attendance/:id", (req, res) => {
+
+  const userId = req.params.id;
+
+  db.query(
+    "SELECT * FROM users WHERE id=?",
+    [userId],
+    (err, userResult) => {
+
+      if (err) return res.json({ success: false });
+
+      if (userResult.length === 0) {
+
+        return res.json({
+          success: false,
+          message: "User not found"
+        });
+
+      }
+
+      const user = userResult[0];
+
+      db.query(
+        "SELECT * FROM attendance WHERE user_id=?",
+        [userId],
+        (err, scanResult) => {
+
+          if (err) return res.json({ success: false });
+
+          if (scanResult.length > 0) {
+
+            return res.json({
+              success: false,
+              message: "Attendance already marked"
+            });
+
+          }
+
+          db.query(
+            `
+            INSERT INTO attendance
+            (user_id,name,event_id,phone,scan_time)
+            VALUES (?,?,?,?,NOW())
+            `,
+            [user.id, user.name, user.event_id, user.phone],
+            (err) => {
+
+              if (err) {
+                console.log(err);
+                return res.json({ success: false });
+              }
+
+              res.json({
+                success: true,
+                message: "Attendance marked successfully"
+              });
+
+            }
+          );
+
+        }
+      );
+
+    }
+  );
+
+});
+
+/* =================================================
+   ATTENDANCE LIST
+================================================= */
 
 app.get("/attendance-list", (req, res) => {
+
   const sql = `
-  SELECT 
-  users.name,
-  users.college_name,
-  users.photo,
-  attendance.scan_time
-  FROM attendance
-  JOIN users ON users.id = attendance.user_id
-  ORDER BY attendance.scan_time DESC
+    SELECT 
+      users.name,
+      users.college_name,
+      users.photo,
+      attendance.scan_time
+    FROM attendance
+    JOIN users ON users.id = attendance.user_id
+    ORDER BY attendance.scan_time DESC
   `;
 
   db.query(sql, (err, result) => {
+
     if (err) {
       console.log(err);
       return res.json([]);
     }
 
     res.json(result);
+
   });
+
 });
 
-/* =========================
-   EVENT-WISE ATTENDANCE
-========================= */
+/* =================================================
+   EVENT WISE ATTENDANCE
+================================================= */
 
 app.get("/attendance/event/:eventId", (req, res) => {
+
   const eventId = req.params.eventId;
 
   const sql = `
-  SELECT 
-  users.name,
-  users.college_name,
-  users.phone,
-  attendance.scan_time
-  FROM attendance
-  JOIN users ON users.id = attendance.user_id
-  WHERE users.event_id = ?
-  ORDER BY attendance.scan_time DESC
+    SELECT 
+      users.name,
+      users.college_name,
+      users.phone,
+      attendance.scan_time
+    FROM attendance
+    JOIN users ON users.id = attendance.user_id
+    WHERE users.event_id = ?
+    ORDER BY attendance.scan_time DESC
   `;
 
   db.query(sql, [eventId], (err, result) => {
+
     if (err) {
       console.log(err);
       return res.json([]);
     }
 
     res.json(result);
+
   });
+
 });
 
-/* =========================
+/* =================================================
    TOTAL ATTENDANCE COUNT
-========================= */
+================================================= */
 
 app.get("/attendance-count", (req, res) => {
-  const sql = "SELECT COUNT(*) AS total FROM attendance";
 
-  db.query(sql, (err, result) => {
-    if (err) {
-      return res.json({ total: 0 });
-    }
+  db.query(
+    "SELECT COUNT(*) AS total FROM attendance",
+    (err, result) => {
 
-    res.json(result[0]);
-  });
-});
-
-/* =========================
-   EVENT-WISE COUNT
-========================= */
-
-app.get("/attendance-count-event", (req, res) => {
-  const sql = `
-  SELECT event_id, COUNT(*) AS total
-  FROM attendance
-  GROUP BY event_id
-  `;
-
-  db.query(sql, (err, result) => {
-    if (err) {
-      return res.json([]);
-    }
-
-    res.json(result);
-  });
-});
-
-/* =========================
-   ALL ATTENDANCE (ADMIN)
-========================= */
-
-app.get("/attendance", (req, res) => {
-  db.query("SELECT * FROM attendance", (err, result) => {
-    if (err) {
-      console.log(err);
-      return res.json({ success: false });
-    }
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  });
-});
-
-/* =========================
-   AUTO PORT HANDLER
-========================= */
-
-const startServer = (port) => {
-  app
-    .listen(port, () => {
-      console.log(`🚀 Server running on port ${port}`);
-    })
-    .on("error", (err) => {
-      if (err.code === "EADDRINUSE") {
-        console.log(`Port ${port} busy, trying ${port + 1}`);
-        startServer(port + 1);
-      } else {
-        console.error(err);
+      if (err) {
+        console.log(err);
+        return res.json({ total: 0 });
       }
-    });
-};
 
-startServer(PORT);
+      res.json(result[0]);
+
+    }
+  );
+
+});
+
+/* =================================================
+   START SERVER
+================================================= */
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
