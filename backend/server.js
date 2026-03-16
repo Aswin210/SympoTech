@@ -38,7 +38,7 @@ app.post("/feedback", (req, res) => {
   if (!user_id || !event_id || !rating) {
     return res.status(400).json({
       success: false,
-      message: "Missing required fields"
+      message: "user_id, event_id and rating are required"
     });
   }
 
@@ -47,26 +47,24 @@ app.post("/feedback", (req, res) => {
     VALUES (?, ?, ?, ?)
   `;
 
-  db.query(
-    sql,
-    [user_id, event_id, rating, comment || ""],
-    (err, result) => {
+  db.query(sql, [user_id, event_id, rating, comment || ""], (err, result) => {
 
-      if (err) {
-        console.log("Database Error:", err);
-        return res.status(500).json({
-          success: false,
-          message: "Database insert failed"
-        });
-      }
+    if (err) {
+      console.log("Feedback Insert Error:", err);
 
-      res.json({
-        success: true,
-        message: "Feedback submitted successfully"
+      return res.status(500).json({
+        success: false,
+        message: "Database error"
       });
-
     }
-  );
+
+    res.json({
+      success: true,
+      message: "Feedback submitted successfully",
+      feedbackId: result.insertId
+    });
+
+  });
 
 });
 

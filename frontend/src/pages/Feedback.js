@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import Navbar from "../components/Navbar";
 import { useLocation } from "react-router-dom";
@@ -7,7 +7,7 @@ function Feedback() {
 
   const location = useLocation();
 
-  const eventId = location?.state?.eventId || 1;
+  const eventId = location?.state?.eventId || 3;
   const eventName = location?.state?.eventName || "College Event";
 
   const userId = 1;
@@ -17,9 +17,11 @@ function Feedback() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  /* LOAD FEEDBACK */
+  /* =========================
+     LOAD FEEDBACKS
+  ========================= */
 
-  const loadFeedbacks = async () => {
+  const loadFeedbacks = useCallback(async () => {
 
     try {
 
@@ -45,15 +47,19 @@ function Feedback() {
 
     }
 
-  };
+  }, [eventId]);
 
-  /* RUN WHEN PAGE LOADS */
+  /* =========================
+     RUN WHEN PAGE LOADS
+  ========================= */
 
   useEffect(() => {
-  loadFeedbacks();
-}, [eventId, loadFeedbacks]);
+    loadFeedbacks();
+  }, [loadFeedbacks]);
 
-  /* SUBMIT FEEDBACK */
+  /* =========================
+     SUBMIT FEEDBACK
+  ========================= */
 
   const submitFeedback = async () => {
 
@@ -64,28 +70,35 @@ function Feedback() {
 
     try {
 
-      const res = await axios.post("http://localhost:5000/feedback", {
-        user_id: userId,
-        event_id: eventId,
-        rating: rating,
-        comment: comment
-      });
+      const res = await axios.post(
+        "http://localhost:5000/feedback",
+        {
+          user_id: userId,
+          event_id: eventId,
+          rating: rating,
+          comment: comment
+        }
+      );
 
       if (res.data.success) {
 
-        alert("Feedback submitted");
+        alert("Feedback submitted successfully");
 
         setComment("");
         setRating(5);
 
         loadFeedbacks();
 
+      } else {
+
+        alert("Failed to submit feedback");
+
       }
 
     } catch (error) {
 
       console.error("Submit feedback error:", error);
-      alert("Server error");
+      alert("Server error while submitting feedback");
 
     }
 
@@ -101,9 +114,11 @@ function Feedback() {
 
         <h2>Feedback for {eventName}</h2>
 
+        {/* Rating */}
+
         <div style={{ marginBottom: "10px" }}>
 
-          <label>Rating:</label>
+          <label>Rating: </label>
 
           <select
             value={rating}
@@ -118,19 +133,32 @@ function Feedback() {
 
         </div>
 
+        {/* Comment */}
+
         <div style={{ marginBottom: "10px" }}>
 
           <label>Comment</label>
 
           <textarea
-            style={{ width: "100%", height: "80px" }}
+            style={{
+              width: "100%",
+              height: "80px",
+              padding: "8px"
+            }}
+            placeholder="Write your feedback..."
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
 
         </div>
 
-        <button onClick={submitFeedback}>
+        <button
+          onClick={submitFeedback}
+          style={{
+            padding: "10px 20px",
+            cursor: "pointer"
+          }}
+        >
           Submit Feedback
         </button>
 
@@ -138,13 +166,13 @@ function Feedback() {
 
         <h3>All Feedback</h3>
 
-        {loading && <p>Loading...</p>}
+        {loading && <p>Loading feedback...</p>}
 
         {!loading && feedbacks.length === 0 && (
-          <p>No feedback yet.</p>
+          <p>No feedback available.</p>
         )}
 
-        {feedbacks.map((f) => (
+        {!loading && feedbacks.map((f) => (
 
           <div
             key={f.id}
@@ -161,7 +189,7 @@ function Feedback() {
 
             <p>{f.comment}</p>
 
-            <p style={{ fontSize: "12px" }}>
+            <p style={{ fontSize: "12px", color: "gray" }}>
               {f.created_at
                 ? new Date(f.created_at).toLocaleString()
                 : ""}
