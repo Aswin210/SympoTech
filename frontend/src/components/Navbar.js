@@ -11,11 +11,15 @@ function Navbar() {
 
       <div style={styles.links}>
         
-        <Link to="/" style={styles.link}>Events</Link>
+        <Link to="/" style={styles.link}>Home</Link>
 
-        <a href="/admin-login">Admin Login</a>
+        <Link to="/events" style={styles.link}>Events</Link>
+
+        <Link to="/admin-login" style={styles.link}>Admin Login</Link>
 
         <Link to="/feedback" style={styles.link}>FeedBack</Link>
+
+        <Link to="/about" style={styles.link}>About</Link>
           
         
       </div>
@@ -34,7 +38,7 @@ const styles = {
   },
 
   logo: {
-    fontSize: "18px",
+    fontSize: "35px",
     fontWeight: "bold"
   },
 

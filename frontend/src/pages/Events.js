@@ -141,7 +141,7 @@ function Events() {
       <Navbar />
 
       <div style={{ padding: "30px" }}>
-        <h2>SRISHTA 2K26 - Technical Events</h2>
+        <h2>SympoTech - Technical Events</h2>
 
         <div
           style={{

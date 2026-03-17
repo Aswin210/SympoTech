@@ -7,6 +7,9 @@ import Register from "./components/Register";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import Feedback from "./pages/Feedback";
+import Home from "./pages/Home";
+import TechnicalEvents from "./pages/TechnicalEvents";
+import NonTechnicalEvents from "./pages/NonTechnicalEvents";
 
 function App() {
 
@@ -17,7 +20,8 @@ function App() {
       <Routes>
 
         {/* HOME */}
-        <Route path="/" element={<Events />} />
+        
+        <Route path="/" element={<Home />} />
 
         {/* EVENTS PAGE */}
         <Route path="/events" element={<Events />} />
@@ -36,6 +40,10 @@ function App() {
 
         {/* FEEDBACK */}
         <Route path="/feedback" element={<Feedback />} />
+
+        <Route path="/technical" element={<TechnicalEvents />} />
+        
+        <Route path="/non-technical" element={<NonTechnicalEvents />} />
 
       </Routes>
 

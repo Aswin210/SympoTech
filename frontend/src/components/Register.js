@@ -1,405 +1,304 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import axios from "axios";
 import QRCode from "react-qr-code";
 import { useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import html2canvas from "html2canvas";
-import * as faceapi from "face-api.js";
 
 function Register() {
+  const location = useLocation();
 
-const location = useLocation();
+  const eventId = location.state?.eventId || "";
+  const eventName = location.state?.eventName || "No Event Selected";
 
-const eventId = location.state?.eventId || "";
-const eventName = location.state?.eventName || "No Event Selected";
+  const [formData, setFormData] = useState({
+    name: "",
+    college_name: "",
+    phone: "",
+    email: "",
+    event_id: eventId,
+  });
 
-const [formData, setFormData] = useState({
-name: "",
-college_name: "",
-phone: "",
-email: "",
-event_id: eventId
-});
+  const [userId, setUserId] = useState("");
+  const [qrData, setQrData] = useState("");
+  const [photo, setPhoto] = useState("");
 
-const [userId, setUserId] = useState("");
-const [qrData, setQrData] = useState("");
-const [photo, setPhoto] = useState("");
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const idCardRef = useRef(null);
+  const streamRef = useRef(null);
 
-const [faceDetected, setFaceDetected] = useState(false);
-const [modelsLoaded, setModelsLoaded] = useState(false);
-const [registering, setRegistering] = useState(false);
+  /* =============================
+   INPUT CHANGE
+============================= */
 
-const videoRef = useRef(null);
-const canvasRef = useRef(null);
-const idCardRef = useRef(null);
-const streamRef = useRef(null);
-const detectInterval = useRef(null);
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
 
-/* ===============================
-   LOAD FACE MODEL
-================================ */
+  /* =============================
+   PAYMENT
+============================= */
 
-useEffect(() => {
+  const handlePayment = async (e) => {
+    e.preventDefault();
 
-const loadModels = async () => {
+    try {
+      const orderRes = await axios.post("http://localhost:5000/create-order", {
+        amount: 200,
+      });
 
-try {
+      const order = orderRes.data.order;
 
-await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
-setModelsLoaded(true);
+      const options = {
+        key: "YOUR_RAZORPAY_KEY_ID",
 
-} catch (err) {
+        amount: order.amount,
 
-console.log("Face model error:", err);
+        currency: "INR",
 
-}
+        name: "College Event",
 
-};
+        description: eventName,
 
-loadModels();
+        order_id: order.id,
 
-}, []);
+        handler: async function () {
+          alert("Payment Successful");
 
-/* ===============================
-   INPUT HANDLER
-================================ */
+          registerUser();
+        },
 
-const handleChange = (e) => {
+        prefill: {
+          name: formData.name,
+          email: formData.email,
+          contact: formData.phone,
+        },
+      };
 
-setFormData({
-...formData,
-[e.target.name]: e.target.value
-});
+      const rzp = new window.Razorpay(options);
 
-};
+      rzp.open();
+    } catch (err) {
+      alert("Payment Failed");
+    }
+  };
 
-/* ===============================
+  /* =============================
    REGISTER USER
-================================ */
+============================= */
 
-const handleSubmit = async (e) => {
+  const registerUser = async () => {
+    try {
+      const res = await axios.post("http://localhost:5000/register", {
+        ...formData,
+        photo,
+      });
 
-e.preventDefault();
+      if (res.data.success) {
+        setUserId(res.data.userId);
+        setQrData(res.data.qrData);
 
-if (registering) return;
+        alert("Registration Successful");
+      } else {
+        alert(res.data.message);
+      }
+    } catch (err) {
+      alert("Registration Failed");
+    }
+  };
 
-setRegistering(true);
-
-try {
-
-const res = await axios.post("http://localhost:5000/register", {
-
-name: formData.name,
-college_name: formData.college_name,
-phone: formData.phone,
-email: formData.email,
-event_id: formData.event_id,
-photo: photo
-
-});
-
-console.log("Server Response:", res.data);
-
-if (res.data.success) {
-
-setUserId(res.data.userId);
-setQrData(res.data.qrData);
-
-alert("Registration Successful");
-
-} else {
-
-alert(res.data.message || "Registration failed");
-
-}
-
-} catch (error) {
-
-console.log("Register error:", error);
-
-alert("Registration failed. Backend not responding.");
-
-}
-
-setRegistering(false);
-
-};
-
-/* ===============================
+  /* =============================
    OPEN CAMERA
-================================ */
+============================= */
 
-const openCamera = async () => {
+  const openCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
 
-if (!modelsLoaded) {
+      streamRef.current = stream;
 
-alert("Face model loading...");
-return;
+      videoRef.current.srcObject = stream;
 
-}
+      videoRef.current.play();
+    } catch (err) {
+      alert("Camera access denied");
+    }
+  };
 
-try {
-
-const stream = await navigator.mediaDevices.getUserMedia({
-video: true,
-audio: false
-});
-
-streamRef.current = stream;
-
-videoRef.current.srcObject = stream;
-
-videoRef.current.onloadedmetadata = () => {
-
-videoRef.current.play();
-startFaceDetection();
-
-};
-
-} catch (err) {
-
-alert("Camera permission denied");
-
-}
-
-};
-
-/* ===============================
-   FACE DETECTION
-================================ */
-
-const startFaceDetection = () => {
-
-detectInterval.current = setInterval(async () => {
-
-if (!videoRef.current) return;
-
-const detections = await faceapi.detectAllFaces(
-videoRef.current,
-new faceapi.TinyFaceDetectorOptions()
-);
-
-if (detections.length === 1) {
-
-setFaceDetected(true);
-
-} else {
-
-setFaceDetected(false);
-
-}
-
-}, 500);
-
-};
-
-/* ===============================
+  /* =============================
    CAPTURE PHOTO
-================================ */
+============================= */
 
-const capturePhoto = () => {
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
 
-const video = videoRef.current;
-const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-if (!video) return;
+    const ctx = canvas.getContext("2d");
 
-canvas.width = video.videoWidth;
-canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
 
-const ctx = canvas.getContext("2d");
+    const image = canvas.toDataURL("image/png");
 
-ctx.drawImage(video, 0, 0);
+    setPhoto(image);
 
-const image = canvas.toDataURL("image/png");
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+    }
+  };
 
-setPhoto(image);
-
-/* STOP CAMERA */
-
-if (streamRef.current) {
-
-streamRef.current.getTracks().forEach(track => track.stop());
-
-}
-
-/* STOP DETECTION */
-
-if (detectInterval.current) {
-
-clearInterval(detectInterval.current);
-
-}
-
-};
-
-/* ===============================
+  /* =============================
    DOWNLOAD ID CARD
-================================ */
+============================= */
 
-const downloadCard = () => {
+  const downloadCard = () => {
+    html2canvas(idCardRef.current).then((canvas) => {
+      const link = document.createElement("a");
 
-html2canvas(idCardRef.current).then((canvas) => {
+      link.download = "Event_ID_Card.png";
 
-const link = document.createElement("a");
+      link.href = canvas.toDataURL();
 
-link.download = "Event_ID_Card.png";
-link.href = canvas.toDataURL();
+      link.click();
+    });
+  };
 
-link.click();
+  /* =============================
+   UI
+============================= */
 
-});
+  return (
+    <div>
+      <Navbar />
 
-};
+      <div style={{ textAlign: "center", padding: "20px" }}>
+        <h2>Event Registration</h2>
 
-return (
+        {!qrData && (
+          <form onSubmit={handlePayment}>
+            <input
+              name="name"
+              placeholder="Name"
+              onChange={handleChange}
+              required
+            />
 
-<div>
+            <br />
+            <br />
 
-<Navbar />
+            <input
+              name="college_name"
+              placeholder="College Name"
+              onChange={handleChange}
+              required
+            />
 
-<div style={{ textAlign:"center", padding:"20px" }}>
+            <br />
+            <br />
 
-<h2>Event Registration</h2>
+            <input
+              name="phone"
+              placeholder="Phone"
+              onChange={handleChange}
+              required
+            />
 
-{!qrData && (
+            <br />
+            <br />
 
-<form onSubmit={handleSubmit}>
+            <input
+              name="email"
+              placeholder="Email"
+              onChange={handleChange}
+              required
+            />
 
-<input
-name="name"
-placeholder="Name"
-onChange={handleChange}
-required
-/>
+            <br />
+            <br />
 
-<br/><br/>
+            <h3>Selected Event : {eventName}</h3>
 
-<input
-name="college_name"
-placeholder="College Name"
-onChange={handleChange}
-required
-/>
+            <button type="submit">Pay & Register</button>
+          </form>
+        )}
 
-<br/><br/>
+        {/* QR */}
 
-<input
-name="phone"
-placeholder="Phone"
-onChange={handleChange}
-required
-/>
+        {qrData && (
+          <div>
+            <h3>Your QR Code</h3>
 
-<br/><br/>
+            <QRCode value={qrData.toString()} size={200} />
 
-<input
-name="email"
-placeholder="Email"
-onChange={handleChange}
-required
-/>
+            <br />
+            <br />
 
-<br/><br/>
+            <button onClick={openCamera}>Open Camera</button>
 
-<h3>Selected Event : {eventName}</h3>
+            <br />
+            <br />
 
-<button type="submit" disabled={registering}>
-{registering ? "Registering..." : "Register"}
-</button>
+            <video
+              ref={videoRef}
+              width="320"
+              height="240"
+              style={{ border: "2px solid black" }}
+            />
 
-</form>
+            <br />
+            <br />
 
-)}
+            <button onClick={capturePhoto}>Capture Photo</button>
 
-{/* QR CODE */}
+            <canvas ref={canvasRef} style={{ display: "none" }} />
+          </div>
+        )}
 
-{qrData && (
+        {/* ID CARD */}
 
-<div>
+        {photo && (
+          <div style={{ marginTop: "30px" }}>
+            <div
+              ref={idCardRef}
+              style={{
+                border: "2px solid black",
+                width: "300px",
+                margin: "auto",
+                padding: "15px",
+                borderRadius: "10px",
+              }}
+            >
+              <h3>College Event ID Card</h3>
 
-<h3>Your QR Code</h3>
+              <p>Name : {formData.name}</p>
+              <p>User ID : {userId}</p>
+              <p>Event : {eventName}</p>
 
-<QRCode value={qrData.toString()} size={220} />
+              <QRCode value={qrData.toString()} size={120} />
 
-<br/><br/>
+              <br />
+              <br />
 
-<button onClick={openCamera}>Open Camera</button>
+              <img src={photo} alt="User" width="120" />
+            </div>
 
-<br/><br/>
+            <br />
 
-<video
-ref={videoRef}
-width="320"
-height="240"
-style={{border:"2px solid black"}}
-/>
-
-<br/>
-
-{faceDetected ? (
-<p style={{color:"green"}}>Face Detected</p>
-) : (
-<p style={{color:"red"}}>No Face / Multiple Faces</p>
-)}
-
-<button onClick={capturePhoto} disabled={!faceDetected}>
-Capture Photo
-</button>
-
-<canvas ref={canvasRef} style={{display:"none"}}/>
-
-</div>
-
-)}
-
-{/* ID CARD */}
-
-{photo && (
-
-<div style={{marginTop:"30px"}}>
-
-<div
-ref={idCardRef}
-style={{
-border:"2px solid black",
-width:"300px",
-margin:"auto",
-padding:"15px",
-borderRadius:"10px"
-}}
->
-
-<h3>College Event ID Card</h3>
-
-<p>Name : {formData.name}</p>
-<p>User ID : {userId}</p>
-<p>Event : {eventName}</p>
-
-<QRCode value={qrData.toString()} size={150} />
-
-<br/><br/>
-
-<img src={photo} alt="user" width="120"/>
-
-</div>
-
-<br/>
-
-<button onClick={downloadCard}>
-Download ID Card
-</button>
-
-</div>
-
-)}
-
-</div>
-
-</div>
-
-);
-
+            <button onClick={downloadCard}>Download ID Card</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default Register;
