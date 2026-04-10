@@ -1,99 +1,307 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
 function QRScanner() {
   const scannerRef = useRef(null);
+  const beepRef    = useRef(null);
+
   const [isScanning, setIsScanning] = useState(false);
-  const [student, setStudent] = useState(null);
-  const [status, setStatus] = useState("");
-  const [message, setMessage] = useState("");
+  const [student,    setStudent]    = useState(null);
+  const [message,    setMessage]    = useState("");
+  const [msgType,    setMsgType]    = useState(""); // "success" | "error" | "warning"
+  const [history,    setHistory]    = useState([]);
 
+  useEffect(() => {
+    beepRef.current = new Audio(
+      "https://www.soundjay.com/button/sounds/beep-01a.mp3"
+    );
+    /* Cleanup scanner on unmount */
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  /* =============================
+     START SCANNER
+  ============================= */
   const startScanner = async () => {
-    if (!scannerRef.current) {
-      scannerRef.current = new Html5Qrcode("reader");
-    }
-
     try {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode("reader");
+      }
+
       await scannerRef.current.start(
         { facingMode: "environment" },
-        { fps: 25, qrbox: 250 },
+        { fps: 20, qrbox: 250 },
         async (decodedText) => {
-          // Pause scanning to prevent multiple triggers
           await stopScanner();
-          handleAttendance(decodedText);
+          beepRef.current?.play().catch(() => {});
+          handleScan(decodedText);
         }
       );
+
       setIsScanning(true);
-      setStatus("");
       setStudent(null);
+      setMessage("");
+      setMsgType("");
     } catch (err) {
-      console.error("Failed to start scanner", err);
+      console.error("Camera error:", err);
+      setMessage("❌ Camera access denied or not available.");
+      setMsgType("error");
     }
   };
 
+  /* =============================
+     STOP SCANNER
+  ============================= */
   const stopScanner = async () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      await scannerRef.current.stop();
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+      } catch {}
       setIsScanning(false);
     }
   };
 
-  const handleAttendance = async (decodedText) => {
+  /* =============================
+     HANDLE QR SCAN RESULT
+     ✅ FIX: server now returns user object
+     so we can display name + college_name
+  ============================= */
+  const handleScan = async (qrData) => {
     try {
-      // 1. Verify User
-      const verify = await fetch(`http://localhost:5000/verify-user/${decodedText}`);
-      const verifyData = await verify.json();
-
-      if (!verifyData.success) {
-        setStatus("notfound");
-        setMessage("User not found in database.");
-        return;
-      }
-
-      setStudent(verifyData.user);
-
-      // 2. Mark Attendance
-      const attendance = await fetch(`http://localhost:5000/mark-attendance/${decodedText}`, {
-        method: "PUT",
+      const res = await fetch("http://localhost:5000/mark-attendance", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ qrData }),
       });
-      const attendanceData = await attendance.json();
 
-      if (attendanceData.success) {
-        setStatus("success");
-        setMessage(`Attendance marked at ${new Date().toLocaleTimeString()}`);
+      const data = await res.json();
+      const time = new Date().toLocaleTimeString();
+
+      if (data.success) {
+        /* ✅ FIXED: data.user now comes from server correctly */
+        setStudent(data.user);
+        setMessage("✅ Attendance Marked Successfully!");
+        setMsgType("success");
+
+        setHistory((prev) => [
+          { name: data.user?.name || "Unknown", time, status: "✅" },
+          ...prev,
+        ]);
+
       } else {
-        setStatus("already");
-        setMessage("Attendance already recorded for this user.");
+        /* Show user details even if already marked */
+        if (data.user) {
+          setStudent(data.user);
+        }
+        setMessage(data.message || "❌ Error marking attendance");
+        setMsgType(data.message?.includes("already") ? "warning" : "error");
+
+        setHistory((prev) => [
+          { name: data.user?.name || "Unknown", time, status: "⚠️" },
+          ...prev,
+        ]);
       }
-    } catch (err) {
-      setStatus("servererror");
-      setMessage("Server connection error.");
+    } catch {
+      setMessage("❌ Server Error. Make sure backend is running.");
+      setMsgType("error");
     }
   };
 
-  return (
-    <div style={{ textAlign: "center", marginTop: "40px" }}>
-      <h2>QR Attendance Scanner</h2>
+  /* =============================
+     MESSAGE COLOR
+  ============================= */
+  const msgColor = {
+    success: "#16a34a",
+    warning: "#d97706",
+    error:   "#dc2626",
+  }[msgType] || "#fff";
 
-      <div style={{ margin: "20px" }}>
+  return (
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <h1 style={{ marginBottom: 6 }}>📷 QR Scanner</h1>
+        <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 16 }}>
+          Scan student ID card to mark attendance
+        </p>
+
+        {/* Scan Buttons */}
         {!isScanning ? (
-          <button onClick={startScanner}>Start Scanner</button>
+          <button style={styles.startBtn} onClick={startScanner}>
+            ▶ Start Scan
+          </button>
         ) : (
-          <button onClick={stopScanner}>Stop Scanner</button>
+          <button style={styles.stopBtn} onClick={stopScanner}>
+            ■ Stop
+          </button>
+        )}
+
+        {/* Camera Feed */}
+        <div
+          id="reader"
+          style={{
+            width:        "100%",
+            marginTop:    16,
+            borderRadius: 8,
+            overflow:     "hidden",
+            border:       isScanning ? "2px solid #00c6ff" : "none",
+          }}
+        />
+
+        {/* Message */}
+        {message && (
+          <div
+            style={{
+              marginTop:    14,
+              padding:      "10px 14px",
+              borderRadius: 8,
+              backgroundColor: msgType === "success"
+                ? "#dcfce7"
+                : msgType === "warning"
+                ? "#fef9c3"
+                : "#fee2e2",
+              border: `1px solid ${msgColor}`,
+              color:  msgColor,
+              fontWeight: "600",
+              fontSize:   14,
+            }}
+          >
+            {message}
+          </div>
+        )}
+
+        {/* Student Details Card */}
+        {student && (
+          <div style={styles.studentCard}>
+            <div style={styles.avatar}>
+              {student.name?.charAt(0).toUpperCase()}
+            </div>
+            <h2 style={{ margin: "8px 0 4px", fontSize: 18 }}>
+              {student.name}
+            </h2>
+            <p style={{ color: "#9ca3af", fontSize: 13, margin: "2px 0" }}>
+              {student.college_name}
+            </p>
+            <p style={{ color: "#9ca3af", fontSize: 13, margin: "2px 0" }}>
+              📱 {student.phone}
+            </p>
+            <p style={{ color: "#9ca3af", fontSize: 13, margin: "2px 0" }}>
+              🎯 Event ID: {student.event_id}
+            </p>
+          </div>
+        )}
+
+        {/* Scan History */}
+        <div style={styles.history}>
+          <h3 style={{ marginBottom: 8, fontSize: 14, color: "#d1d5db" }}>
+            Scan History
+          </h3>
+          {history.length === 0 ? (
+            <p style={{ color: "#6b7280", fontSize: 13 }}>No scans yet</p>
+          ) : (
+            history.map((h, i) => (
+              <div key={i} style={styles.historyRow}>
+                <span>{h.status} {h.name}</span>
+                <span style={{ color: "#9ca3af", fontSize: 12 }}>{h.time}</span>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Rescan Button */}
+        {!isScanning && student && (
+          <button
+            style={{ ...styles.startBtn, marginTop: 12, backgroundColor: "#7c3aed" }}
+            onClick={startScanner}
+          >
+            🔄 Scan Next Student
+          </button>
         )}
       </div>
-
-      <div id="reader" style={{ width: "350px", margin: "auto" }}></div>
-
-      {student && (
-        <div style={{ marginTop: "20px" }}>
-          <h3>{student.name}</h3>
-          <p>{student.college_name}</p>
-          <h3 style={{ color: status === "success" ? "green" : "red" }}>{message}</h3>
-        </div>
-      )}
     </div>
   );
 }
 
 export default QRScanner;
+
+const styles = {
+  page: {
+    minHeight:       "100vh",
+    display:         "flex",
+    justifyContent:  "center",
+    alignItems:      "flex-start",
+    background:      "#111827",
+    padding:         "24px 16px",
+  },
+  card: {
+    padding:         24,
+    borderRadius:    14,
+    background:      "#1f2937",
+    width:           "100%",
+    maxWidth:        400,
+    textAlign:       "center",
+    color:           "#f9fafb",
+    boxShadow:       "0 4px 24px rgba(0,0,0,0.4)",
+  },
+  startBtn: {
+    padding:         "11px 28px",
+    background:      "#0891b2",
+    border:          "none",
+    borderRadius:    8,
+    color:           "#fff",
+    fontSize:        15,
+    fontWeight:      "bold",
+    cursor:          "pointer",
+    width:           "100%",
+  },
+  stopBtn: {
+    padding:         "11px 28px",
+    background:      "#dc2626",
+    border:          "none",
+    borderRadius:    8,
+    color:           "#fff",
+    fontSize:        15,
+    fontWeight:      "bold",
+    cursor:          "pointer",
+    width:           "100%",
+  },
+  studentCard: {
+    marginTop:       16,
+    padding:         16,
+    borderRadius:    10,
+    background:      "#111827",
+    border:          "1px solid #374151",
+    textAlign:       "center",
+  },
+  avatar: {
+    width:           48,
+    height:          48,
+    borderRadius:    "50%",
+    background:      "#4f46e5",
+    color:           "#fff",
+    fontSize:        22,
+    fontWeight:      "bold",
+    display:         "flex",
+    alignItems:      "center",
+    justifyContent:  "center",
+    margin:          "0 auto",
+  },
+  history: {
+    marginTop:       20,
+    textAlign:       "left",
+    borderTop:       "1px solid #374151",
+    paddingTop:      14,
+  },
+  historyRow: {
+    display:         "flex",
+    justifyContent:  "space-between",
+    alignItems:      "center",
+    padding:         "6px 0",
+    borderBottom:    "1px solid #1f2937",
+    fontSize:        13,
+    color:           "#e5e7eb",
+  },
+};

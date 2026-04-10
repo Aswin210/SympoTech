@@ -46,10 +46,10 @@ function Home() {
         <h3>Features</h3>
 
         <ul style={{ listStyle: "none" }}>
-          <li>🎫 Event Registration</li>
-          <li>📱 QR Code for Entry</li>
-          <li>💳 Online Payment</li>
-          <li>📊 Admin QR Scanner</li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
         </ul>
       </div>
     </div>

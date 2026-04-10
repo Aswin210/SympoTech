@@ -5,9 +5,9 @@ import Events from "./pages/Events";
 import QRScanner from "./pages/QRScanner";
 import Register from "./components/Register";
 import AdminLogin from "./pages/AdminLogin";
-import AdminDashboard from "./pages/AdminDashboard";
 import Feedback from "./pages/Feedback";
 import Home from "./pages/Home";
+import IDCard from "./pages/IDCard";
 import TechnicalEvents from "./pages/TechnicalEvents";
 import NonTechnicalEvents from "./pages/NonTechnicalEvents";
 
@@ -35,15 +35,15 @@ function App() {
         {/* ADMIN LOGIN */}
         <Route path="/admin-login" element={<AdminLogin />} />
 
-        {/* ADMIN DASHBOARD */}
-        <Route path="/admin-dashboard" element={<AdminDashboard />} />
-
         {/* FEEDBACK */}
         <Route path="/feedback" element={<Feedback />} />
 
         <Route path="/technical" element={<TechnicalEvents />} />
         
         <Route path="/non-technical" element={<NonTechnicalEvents />} />
+
+        <Route path="/id-card" element={<IDCard />} />
+
 
       </Routes>
 

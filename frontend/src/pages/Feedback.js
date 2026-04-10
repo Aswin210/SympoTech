@@ -1,210 +1,167 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import Navbar from "../components/Navbar";
-import { useLocation } from "react-router-dom";
 
 function Feedback() {
 
-  const location = useLocation();
-
-  const eventId = location?.state?.eventId || 3;
-  const eventName = location?.state?.eventName || "College Event";
-
-  const userId = 1;
-
+  const [userName, setUserName] = useState("");
+  const [userId, setUserId] = useState("");
+  const [eventName, setEventName] = useState("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
-  const [feedbacks, setFeedbacks] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [feedbackList, setFeedbackList] = useState([]);
 
-  /* =========================
-     LOAD FEEDBACKS
-  ========================= */
-
-  const loadFeedbacks = useCallback(async () => {
-
+  // ✅ Load feedback
+  const loadFeedback = async () => {
     try {
-
-      setLoading(true);
-
-      const res = await axios.get(
-        `http://localhost:5000/feedback/${eventId}`
-      );
-
-      if (Array.isArray(res.data)) {
-        setFeedbacks(res.data);
-      } else {
-        setFeedbacks([]);
-      }
-
-    } catch (error) {
-
-      console.error("Error loading feedback:", error);
-
-    } finally {
-
-      setLoading(false);
-
+      const res = await axios.get("http://localhost:5000/api/feedback");
+      setFeedbackList(res.data);
+    } catch (err) {
+      console.log("❌ Error loading feedback");
     }
-
-  }, [eventId]);
-
-  /* =========================
-     RUN WHEN PAGE LOADS
-  ========================= */
+  };
 
   useEffect(() => {
-    loadFeedbacks();
-  }, [loadFeedbacks]);
+    loadFeedback();
+  }, []);
 
-  /* =========================
-     SUBMIT FEEDBACK
-  ========================= */
-
+  // ✅ Submit feedback
   const submitFeedback = async () => {
 
-    if (!comment.trim()) {
-      alert("Please enter a comment");
+    if (!userName || !userId || !eventName || !comment) {
+      alert("⚠️ Fill all fields");
       return;
     }
 
     try {
-
-      const res = await axios.post(
-        "http://localhost:5000/feedback",
-        {
-          user_id: userId,
-          event_id: eventId,
-          rating: rating,
-          comment: comment
-        }
-      );
+      const res = await axios.post("http://localhost:5000/api/feedback", {
+        user_name: userName,
+        user_id: Number(userId),
+        event_name: eventName,
+        rating: Number(rating),
+        comment: comment
+      });
 
       if (res.data.success) {
+        alert("✅ Feedback submitted successfully");
 
-        alert("Feedback submitted successfully");
-
-        setComment("");
+        setUserName("");
+        setUserId("");
+        setEventName("");
         setRating(5);
+        setComment("");
 
-        loadFeedbacks();
-
+        loadFeedback();
       } else {
-
-        alert("Failed to submit feedback");
-
+        alert("❌ Failed to submit feedback");
       }
 
     } catch (error) {
-
-      console.error("Submit feedback error:", error);
-      alert("Server error while submitting feedback");
-
+      console.error("❌ Error:", error);
+      alert("🚫 Server error");
     }
-
   };
 
   return (
+    <div style={styles.container}>
 
-    <div>
+      <h2 style={styles.heading}>Event Feedback</h2>
 
-      <Navbar />
+      <input
+        type="text"
+        placeholder="Enter Name"
+        value={userName}
+        onChange={(e) => setUserName(e.target.value)}
+        style={styles.input}
+      />
 
-      <div style={{ padding: "20px", maxWidth: "600px", margin: "auto" }}>
+      <input
+        type="number"
+        placeholder="Enter User ID"
+        value={userId}
+        onChange={(e) => setUserId(e.target.value)}
+        style={styles.input}
+      />
 
-        <h2>Feedback for {eventName}</h2>
+      <input
+        type="text"
+        placeholder="Event Name"
+        value={eventName}
+        onChange={(e) => setEventName(e.target.value)}
+        style={styles.input}
+      />
 
-        {/* Rating */}
+      <select
+        value={rating}
+        onChange={(e) => setRating(Number(e.target.value))}
+        style={styles.input}
+      >
+        <option value="5">⭐⭐⭐⭐⭐ Excellent</option>
+        <option value="4">⭐⭐⭐⭐ Good</option>
+        <option value="3">⭐⭐⭐ Average</option>
+        <option value="2">⭐⭐ Poor</option>
+        <option value="1">⭐ Bad</option>
+      </select>
 
-        <div style={{ marginBottom: "10px" }}>
+      <textarea
+        placeholder="Enter Comment"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        style={styles.textarea}
+      />
 
-          <label>Rating: </label>
+      <button onClick={submitFeedback} style={styles.button}>
+        Submit Feedback
+      </button>
 
-          <select
-            value={rating}
-            onChange={(e) => setRating(Number(e.target.value))}
-          >
-            <option value="1">1 Star</option>
-            <option value="2">2 Star</option>
-            <option value="3">3 Star</option>
-            <option value="4">4 Star</option>
-            <option value="5">5 Star</option>
-          </select>
+      <h3 style={{ marginTop: "30px" }}>All Feedback</h3>
 
+      {feedbackList.map((fb, index) => (
+        <div key={index} style={styles.card}>
+          <p><b>Name:</b> {fb.user_name}</p>
+          <p><b>Event:</b> {fb.event_name}</p>
+          <p><b>Rating:</b> ⭐ {fb.rating}</p>
+          <p><b>Comment:</b> {fb.comment}</p>
         </div>
-
-        {/* Comment */}
-
-        <div style={{ marginBottom: "10px" }}>
-
-          <label>Comment</label>
-
-          <textarea
-            style={{
-              width: "100%",
-              height: "80px",
-              padding: "8px"
-            }}
-            placeholder="Write your feedback..."
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-          />
-
-        </div>
-
-        <button
-          onClick={submitFeedback}
-          style={{
-            padding: "10px 20px",
-            cursor: "pointer"
-          }}
-        >
-          Submit Feedback
-        </button>
-
-        <hr />
-
-        <h3>All Feedback</h3>
-
-        {loading && <p>Loading feedback...</p>}
-
-        {!loading && feedbacks.length === 0 && (
-          <p>No feedback available.</p>
-        )}
-
-        {!loading && feedbacks.map((f) => (
-
-          <div
-            key={f.id}
-            style={{
-              border: "1px solid #ccc",
-              padding: "10px",
-              marginBottom: "10px"
-            }}
-          >
-
-            <p>
-              <b>{f.user_name || "User"}</b> rated {f.rating}/5
-            </p>
-
-            <p>{f.comment}</p>
-
-            <p style={{ fontSize: "12px", color: "gray" }}>
-              {f.created_at
-                ? new Date(f.created_at).toLocaleString()
-                : ""}
-            </p>
-
-          </div>
-
-        ))}
-
-      </div>
+      ))}
 
     </div>
-
   );
-
 }
+
+const styles = {
+  container: {
+    width: "400px",
+    margin: "auto",
+    padding: "20px",
+    textAlign: "center"
+  },
+  heading: {
+    marginBottom: "20px"
+  },
+  input: {
+    width: "100%",
+    padding: "10px",
+    margin: "10px 0"
+  },
+  textarea: {
+    width: "100%",
+    padding: "10px",
+    height: "80px",
+    margin: "10px 0"
+  },
+  button: {
+    padding: "10px 20px",
+    backgroundColor: "black",
+    color: "white",
+    border: "none",
+    cursor: "pointer"
+  },
+  card: {
+    border: "1px solid #ccc",
+    padding: "10px",
+    marginTop: "10px",
+    textAlign: "left"
+  }
+};
 
 export default Feedback;

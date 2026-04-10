@@ -14,5 +14,6 @@
             "username": "root",
             "name": "MySQl80"
         }
-    ]
+    ],
+    "java.compile.nullAnalysis.mode": "automatic"
 }   

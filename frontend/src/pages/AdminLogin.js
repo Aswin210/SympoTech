@@ -7,58 +7,161 @@ function AdminLogin() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [darkMode] = useState(false); // (kept, but button removed)
 
   const handleLogin = (e) => {
     e.preventDefault();
 
-    /* SIMPLE ADMIN LOGIN */
+    setError("");
 
     if (username === "admin" && password === "1234") {
       localStorage.setItem("admin", "true");
-
-      alert("Admin Login Successful");
-
       navigate("/scanner");
     } else {
-      alert("Invalid Admin Username or Password");
+      setError("❌ Invalid Username or Password");
     }
   };
 
   return (
-    <div>
+    <div style={darkMode ? styles.darkPage : styles.page}>
       <Navbar />
 
-      <div style={{ padding: "40px" }}>
-        <h2>Admin Login</h2>
+      <div style={styles.container}>
+        <form
+          onSubmit={handleLogin}
+          style={darkMode ? styles.darkCard : styles.card}
+        >
+          <h2 style={styles.heading}>🔐 Admin Login</h2>
 
-        <form onSubmit={handleLogin}>
+          {error && <div style={styles.error}>{error}</div>}
+
           <input
             type="text"
             placeholder="Admin Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            style={styles.input}
             required
           />
 
-          <br />
-          <br />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={styles.input}
+              required
+            />
 
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+            <span
+              onClick={() => setShowPassword(!showPassword)}
+              style={styles.eye}
+            >
+              {showPassword ? "🙈" : "👁"}
+            </span>
+          </div>
 
-          <br />
-          <br />
-
-          <button type="submit">Login</button>
+          <button type="submit" style={styles.button}>
+            Login
+          </button>
         </form>
       </div>
     </div>
   );
 }
+
+/* 🎨 STYLES */
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #667eea, #764ba2)",
+  },
+
+  darkPage: {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #141e30, #243b55)",
+  },
+
+  container: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    height: "90vh",
+  },
+
+  card: {
+    background: "rgba(255,255,255,0.15)",
+    backdropFilter: "blur(10px)",
+    padding: "40px",
+    borderRadius: "15px",
+    width: "320px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "15px",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+  },
+
+  darkCard: {
+    background: "rgba(0,0,0,0.4)",
+    backdropFilter: "blur(10px)",
+    padding: "40px",
+    borderRadius: "15px",
+    width: "320px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "15px",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+    color: "#fff",
+  },
+
+  heading: {
+    textAlign: "center",
+    color: "#fff",
+  },
+
+  input: {
+    padding: "12px",
+    borderRadius: "8px",
+    border: "none",
+    outline: "none",
+    fontSize: "14px",
+  },
+
+  button: {
+    padding: "12px",
+    border: "none",
+    borderRadius: "8px",
+    background: "linear-gradient(135deg, #ff7eb3, #ff758c)",
+    color: "#fff",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
+
+  eye: {
+    position: "absolute",
+    right: "10px",
+    top: "12px",
+    cursor: "pointer",
+  },
+
+  error: {
+    background: "#ff4d4d",
+    color: "#fff",
+    padding: "8px",
+    borderRadius: "6px",
+    textAlign: "center",
+    fontSize: "14px",
+  },
+
+  toggleBtn: {
+    padding: "8px 12px",
+    borderRadius: "8px",
+    border: "none",
+    cursor: "pointer",
+  },
+};
 
 export default AdminLogin;
