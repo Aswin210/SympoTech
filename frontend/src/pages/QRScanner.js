@@ -2,8 +2,9 @@ import React, { useRef, useState, useEffect } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
 function QRScanner() {
-  const scannerRef = useRef(null);
-  const beepRef    = useRef(null);
+  const scannerRef    = useRef(null);
+  const beepRef       = useRef(null);
+  const isRunningRef  = useRef(false); // ✅ FIX: tracks real scanner state
 
   const [isScanning, setIsScanning] = useState(false);
   const [student,    setStudent]    = useState(null);
@@ -15,10 +16,12 @@ function QRScanner() {
     beepRef.current = new Audio(
       "https://www.soundjay.com/button/sounds/beep-01a.mp3"
     );
-    /* Cleanup scanner on unmount */
+
+    // ✅ FIX: only stop if scanner is actually running
     return () => {
-      if (scannerRef.current) {
+      if (scannerRef.current && isRunningRef.current) {
         scannerRef.current.stop().catch(() => {});
+        isRunningRef.current = false;
       }
     };
   }, []);
@@ -32,6 +35,9 @@ function QRScanner() {
         scannerRef.current = new Html5Qrcode("reader");
       }
 
+      // ✅ FIX: if already running, don't start again
+      if (isRunningRef.current) return;
+
       await scannerRef.current.start(
         { facingMode: "environment" },
         { fps: 20, qrbox: 250 },
@@ -42,12 +48,14 @@ function QRScanner() {
         }
       );
 
+      isRunningRef.current = true; // ✅ FIX: mark as running
       setIsScanning(true);
       setStudent(null);
       setMessage("");
       setMsgType("");
     } catch (err) {
       console.error("Camera error:", err);
+      isRunningRef.current = false;
       setMessage("❌ Camera access denied or not available.");
       setMsgType("error");
     }
@@ -57,18 +65,20 @@ function QRScanner() {
      STOP SCANNER
   ============================= */
   const stopScanner = async () => {
-    if (scannerRef.current) {
+    // ✅ FIX: guard with isRunningRef so stop() is never called on an idle scanner
+    if (scannerRef.current && isRunningRef.current) {
       try {
         await scannerRef.current.stop();
-      } catch {}
-      setIsScanning(false);
+      } catch {
+        // swallow — already stopped
+      }
+      isRunningRef.current = false;
     }
+    setIsScanning(false);
   };
 
   /* =============================
      HANDLE QR SCAN RESULT
-     ✅ FIX: server now returns user object
-     so we can display name + college_name
   ============================= */
   const handleScan = async (qrData) => {
     try {
@@ -82,7 +92,6 @@ function QRScanner() {
       const time = new Date().toLocaleTimeString();
 
       if (data.success) {
-        /* ✅ FIXED: data.user now comes from server correctly */
         setStudent(data.user);
         setMessage("✅ Attendance Marked Successfully!");
         setMsgType("success");
@@ -91,9 +100,7 @@ function QRScanner() {
           { name: data.user?.name || "Unknown", time, status: "✅" },
           ...prev,
         ]);
-
       } else {
-        /* Show user details even if already marked */
         if (data.user) {
           setStudent(data.user);
         }
