@@ -9,7 +9,7 @@ function AdminLogin() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [darkMode] = useState(false); // (kept, but button removed)
+  const [darkMode] = useState(false);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -89,37 +89,45 @@ const styles = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    height: "90vh",
+    minHeight: "90vh",
+    padding: "16px",
+    boxSizing: "border-box",
   },
 
   card: {
     background: "rgba(255,255,255,0.15)",
     backdropFilter: "blur(10px)",
-    padding: "40px",
+    WebkitBackdropFilter: "blur(10px)",
+    padding: "clamp(24px, 6vw, 40px)",
     borderRadius: "15px",
-    width: "320px",
+    width: "min(320px, 100%)",
     display: "flex",
     flexDirection: "column",
     gap: "15px",
     boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+    boxSizing: "border-box",
   },
 
   darkCard: {
     background: "rgba(0,0,0,0.4)",
     backdropFilter: "blur(10px)",
-    padding: "40px",
+    WebkitBackdropFilter: "blur(10px)",
+    padding: "clamp(24px, 6vw, 40px)",
     borderRadius: "15px",
-    width: "320px",
+    width: "min(320px, 100%)",
     display: "flex",
     flexDirection: "column",
     gap: "15px",
     boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
     color: "#fff",
+    boxSizing: "border-box",
   },
 
   heading: {
     textAlign: "center",
     color: "#fff",
+    fontSize: "clamp(18px, 5vw, 22px)",
+    margin: 0,
   },
 
   input: {
@@ -127,17 +135,23 @@ const styles = {
     borderRadius: "8px",
     border: "none",
     outline: "none",
-    fontSize: "14px",
+    fontSize: "16px", // 16px prevents iOS auto-zoom on focus
+    width: "100%",
+    boxSizing: "border-box",
+    WebkitAppearance: "none",
   },
 
   button: {
-    padding: "12px",
+    padding: "14px",
     border: "none",
     borderRadius: "8px",
     background: "linear-gradient(135deg, #ff7eb3, #ff758c)",
     color: "#fff",
     fontWeight: "bold",
     cursor: "pointer",
+    fontSize: "16px",
+    touchAction: "manipulation",
+    WebkitTapHighlightColor: "transparent",
   },
 
   eye: {
@@ -145,6 +159,9 @@ const styles = {
     right: "10px",
     top: "12px",
     cursor: "pointer",
+    fontSize: "16px",
+    userSelect: "none",
+    WebkitUserSelect: "none",
   },
 
   error: {

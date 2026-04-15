@@ -10,6 +10,12 @@ function Navbar() {
   return (
     <>
       <style>{`
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
         .sympo-navbar {
           display: flex;
           justify-content: space-between;
@@ -19,44 +25,55 @@ function Navbar() {
           color: white;
           position: relative;
           z-index: 1000;
+          width: 100%;
         }
 
         .sympo-logo {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: bold;
           color: white;
           flex: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          padding-right: 10px;
         }
 
         .sympo-hamburger {
           display: none;
           flex-direction: column;
+          justify-content: center;
+          align-items: center;
           gap: 5px;
           background: none;
           border: none;
           cursor: pointer;
-          padding: 4px;
+          padding: 6px;
           z-index: 1100;
+          min-width: 36px;
+          min-height: 36px;
         }
 
-        .sympo-hamburger span {
+        .sympo-hamburger .bar {
           display: block;
-          width: 25px;
+          width: 24px;
           height: 3px;
           background: white;
           border-radius: 3px;
-          transition: all 0.3s ease;
+          transition: transform 0.3s ease, opacity 0.3s ease;
+          transform-origin: center;
         }
 
-        .sympo-hamburger.open span:nth-child(1) {
+        .sympo-hamburger.open .bar:nth-child(1) {
           transform: translateY(8px) rotate(45deg);
         }
 
-        .sympo-hamburger.open span:nth-child(2) {
+        .sympo-hamburger.open .bar:nth-child(2) {
           opacity: 0;
+          transform: scaleX(0);
         }
 
-        .sympo-hamburger.open span:nth-child(3) {
+        .sympo-hamburger.open .bar:nth-child(3) {
           transform: translateY(-8px) rotate(-45deg);
         }
 
@@ -78,14 +95,49 @@ function Navbar() {
           color: #ff7eb3;
         }
 
-        /* Mobile overlay */
         .sympo-mobile-menu {
           display: none;
+          flex-direction: column;
+          background: #2a2a2a;
+          width: 100%;
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          z-index: 998;
+          box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+          overflow: hidden;
+        }
+
+        .sympo-mobile-menu.is-open {
+          display: flex;
+        }
+
+        .sympo-mobile-menu a {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 15px 24px;
+          color: white;
+          text-decoration: none;
+          font-size: 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.07);
+          transition: background 0.2s;
+        }
+
+        .sympo-mobile-menu a:last-child {
+          border-bottom: none;
+        }
+
+        .sympo-mobile-menu a:hover,
+        .sympo-mobile-menu a:active {
+          background: rgba(255, 126, 179, 0.15);
+          color: #ff7eb3;
         }
 
         @media (max-width: 768px) {
           .sympo-logo {
-            font-size: 16px;
+            font-size: 15px;
           }
 
           .sympo-hamburger {
@@ -95,70 +147,50 @@ function Navbar() {
           .sympo-links {
             display: none;
           }
+        }
 
-          .sympo-mobile-menu {
-            display: ${menuOpen ? "flex" : "none"};
-            flex-direction: column;
-            background: #333;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            z-index: 999;
-            padding: 10px 0;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        @media (max-width: 380px) {
+          .sympo-logo {
+            font-size: 13px;
           }
 
-          .sympo-mobile-menu a {
-            padding: 14px 24px;
-            color: white;
-            text-decoration: none;
-            font-size: 16px;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
-            transition: background 0.2s;
-          }
-
-          .sympo-mobile-menu a:last-child {
-            border-bottom: none;
-          }
-
-          .sympo-mobile-menu a:hover {
-            background: rgba(255,255,255,0.1);
+          .sympo-navbar {
+            padding: 10px 14px;
           }
         }
       `}</style>
 
-      <nav className="sympo-navbar">
-        <div className="sympo-logo">Sympotech Event Management System</div>
+      <div style={{ position: "relative", zIndex: 1000 }}>
+        <nav className="sympo-navbar">
+          <div className="sympo-logo">Sympotech Event Management System</div>
 
-        {/* Desktop Links */}
-        <div className="sympo-links">
-          <Link to="/" className="sympo-link">Home</Link>
-          <Link to="/events" className="sympo-link">Events</Link>
-          <Link to="/admin-login" className="sympo-link">Admin Login</Link>
-          <Link to="/feedback" className="sympo-link">FeedBack</Link>
-          <Link to="/about" className="sympo-link">About</Link>
+          <div className="sympo-links">
+            <Link to="/" className="sympo-link">Home</Link>
+            <Link to="/events" className="sympo-link">Events</Link>
+            <Link to="/admin-login" className="sympo-link">Admin Login</Link>
+            <Link to="/feedback" className="sympo-link">FeedBack</Link>
+            <Link to="/about" className="sympo-link">About</Link>
+          </div>
+
+          <button
+            className={"sympo-hamburger " + (menuOpen ? "open" : "")}
+            onClick={toggleMenu}
+            aria-label="Toggle navigation menu"
+            aria-expanded={menuOpen}
+          >
+            <span className="bar" />
+            <span className="bar" />
+            <span className="bar" />
+          </button>
+        </nav>
+
+        <div className={"sympo-mobile-menu " + (menuOpen ? "is-open" : "")}>
+          <Link to="/" onClick={closeMenu}>🏠 Home</Link>
+          <Link to="/events" onClick={closeMenu}>🎉 Events</Link>
+          <Link to="/admin-login" onClick={closeMenu}>🔐 Admin Login</Link>
+          <Link to="/feedback" onClick={closeMenu}>💬 FeedBack</Link>
+          <Link to="/about" onClick={closeMenu}>ℹ️ About</Link>
         </div>
-
-        {/* Hamburger Button */}
-        <button
-          className={`sympo-hamburger ${menuOpen ? "open" : ""}`}
-          onClick={toggleMenu}
-          aria-label="Toggle menu"
-        >
-          <span />
-          <span />
-          <span />
-        </button>
-      </nav>
-
-      {/* Mobile Dropdown Menu */}
-      <div className="sympo-mobile-menu" style={{ display: menuOpen ? "flex" : "none" }}>
-        <Link to="/" onClick={closeMenu}>🏠 Home</Link>
-        <Link to="/events" onClick={closeMenu}>🎉 Events</Link>
-        <Link to="/admin-login" onClick={closeMenu}>🔐 Admin Login</Link>
-        <Link to="/feedback" onClick={closeMenu}>💬 FeedBack</Link>
-        <Link to="/about" onClick={closeMenu}>ℹ️ About</Link>
       </div>
     </>
   );
