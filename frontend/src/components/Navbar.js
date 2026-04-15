@@ -6,7 +6,7 @@ function Navbar() {
   return (
     <nav style={styles.navbar}>
       <div style={styles.logo}>
-        Sasurie College Of Engineering (Autonoms)
+        Sympotech Event Management System 
       </div>
 
       <div style={styles.links}>

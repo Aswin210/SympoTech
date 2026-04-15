@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "targets": [
+      "eventapi"
+    ],
+    "ignore": [],
+    "source": "functions"
+  }
+}
