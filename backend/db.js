@@ -1,18 +1,16 @@
-const mysql = require("mysql2");
+require("dotenv").config();
+const { createClient } = require("@supabase/supabase-js");
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "root",
-  database: "eventdb"
-});
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("❌ Supabase credentials missing in .env");
+  process.exit(1);
+}
 
-db.connect((err) => {
-  if (err) {
-    console.error("❌ MySQL Connection Failed:", err);
-  } else {
-    console.log("✅ MySQL Connected to eventdb");
-  }
-});
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-module.exports = db;
+console.log("✅ Supabase client initialized");
+
+module.exports = supabase;

@@ -1,511 +1,456 @@
-const express = require("express");
-const cors = require("cors");
-const db = require("./db");
-const path = require("path");
-const crypto = require("crypto");
+require("dotenv").config();
+const express  = require("express");
+const cors     = require("cors");
+const supabase = require("./db");
+const path     = require("path");
+const crypto   = require("crypto");
+const axios    = require("axios");
+const Razorpay = require("razorpay");
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const app        = express();
+const PORT       = process.env.PORT           || 5000;
+const AI_SERVICE = process.env.AI_SERVICE_URL || "http://localhost:5001";
 
-/* =========================
-   MIDDLEWARE
-========================= */
-app.use(cors());
-app.use(express.json({ limit: "15mb" }));
-app.use(express.urlencoded({ limit: "15mb", extended: true }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-/* =========================
-   HEALTH CHECK
-========================= */
-app.get("/", (req, res) => res.json({ success: true, message: "Backend running 🚀" }));
-
-/* =================================================
-   DATABASE BOOTSTRAP
-   Creates / alters all tables on startup
-================================================= */
-function bootstrapDB() {
-  /* Users table */
-  db.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id              INT AUTO_INCREMENT PRIMARY KEY,
-      name            VARCHAR(255)  NOT NULL,
-      college_name    VARCHAR(255)  NOT NULL,
-      phone           VARCHAR(20)   NOT NULL,
-      email           VARCHAR(255)  NOT NULL,
-      event_id        VARCHAR(100)  NOT NULL,
-      utr_number      VARCHAR(100)  UNIQUE,
-      photo           LONGTEXT,
-      payment_status  VARCHAR(50)   DEFAULT 'pending',
-      payment_screenshot VARCHAR(255),
-      utr_score       INT           DEFAULT 0,
-      utr_flags       TEXT,
-      auto_checked    TINYINT(1)    DEFAULT 0,
-      created_at      DATETIME      DEFAULT CURRENT_TIMESTAMP
-    )
-  `, err => { if (err) console.error("❌ users table:", err.message); else console.log("✅ users table ready"); });
-
-  /* transaction_history table */
-  db.query(`
-    CREATE TABLE IF NOT EXISTS transaction_history (
-      id         INT AUTO_INCREMENT PRIMARY KEY,
-      user_id    INT           NOT NULL,
-      name       VARCHAR(255)  NOT NULL,
-      email      VARCHAR(255)  NOT NULL,
-      phone      VARCHAR(20)   NOT NULL,
-      event_id   VARCHAR(100)  NOT NULL,
-      utr_number VARCHAR(100)  NOT NULL UNIQUE,
-      amount     VARCHAR(20)   DEFAULT '1',
-      status     VARCHAR(50)   DEFAULT 'pending',
-      utr_score  INT           DEFAULT 0,
-      utr_flags  TEXT,
-      paid_at    DATETIME      DEFAULT CURRENT_TIMESTAMP
-    )
-  `, err => { if (err) console.error("❌ transaction_history:", err.message); else console.log("✅ transaction_history ready"); });
-
-  /* utr_blacklist table */
-  db.query(`
-    CREATE TABLE IF NOT EXISTS utr_blacklist (
-      id         INT AUTO_INCREMENT PRIMARY KEY,
-      utr_number VARCHAR(100) NOT NULL UNIQUE,
-      reason     VARCHAR(255),
-      added_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `, err => { if (err) console.error("❌ utr_blacklist:", err.message); else console.log("✅ utr_blacklist ready"); });
-
-  /* attendance table */
-  db.query(`
-    CREATE TABLE IF NOT EXISTS attendance (
-      id        INT AUTO_INCREMENT PRIMARY KEY,
-      user_id   INT          NOT NULL,
-      name      VARCHAR(255) NOT NULL,
-      event_id  VARCHAR(100) NOT NULL,
-      phone     VARCHAR(20)  NOT NULL,
-      scan_time DATETIME     DEFAULT CURRENT_TIMESTAMP
-    )
-  `, err => { if (err) console.error("❌ attendance:", err.message); else console.log("✅ attendance ready"); });
-
-  /* feedback table */
-  db.query(`
-    CREATE TABLE IF NOT EXISTS feedback (
-      id         INT AUTO_INCREMENT PRIMARY KEY,
-      user_name  VARCHAR(255) NOT NULL,
-      user_id    INT          NOT NULL,
-      event_name VARCHAR(255) NOT NULL,
-      rating     INT          NOT NULL,
-      comment    TEXT,
-      created_at DATETIME     DEFAULT CURRENT_TIMESTAMP
-    )
-  `, err => { if (err) console.error("❌ feedback:", err.message); else console.log("✅ feedback ready"); });
-
-  /* events table */
-  db.query(`
-    CREATE TABLE IF NOT EXISTS events (
-      id          INT AUTO_INCREMENT PRIMARY KEY,
-      name        VARCHAR(255) NOT NULL,
-      description TEXT,
-      date        DATE,
-      venue       VARCHAR(255),
-      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `, err => { if (err) console.error("❌ events:", err.message); else console.log("✅ events ready"); });
-}
-
-bootstrapDB();
-
-/* =================================================
-   SMART UTR ANALYZER ENGINE
-   Returns { score: 0-100, flags: [], block: bool, verdict: string }
-================================================= */
-function analyzeUTR(utr) {
-  const t = utr.trim().toUpperCase();
-  let score = 100;
-  const flags = [];
-
-  if (t.length < 10 || t.length > 22)
-    return { score: 0, flags: ["Invalid length. UTR must be 10–22 characters."], block: true, verdict: "blocked" };
-
-  if (!/^[A-Z0-9]+$/.test(t))
-    return { score: 0, flags: ["Invalid characters. Only letters and numbers allowed."], block: true, verdict: "blocked" };
-
-  /* Entropy */
-  const uniqueRatio = new Set(t).size / t.length;
-  if (uniqueRatio < 0.2) { score -= 60; flags.push("Very low character variety — likely fake"); }
-  else if (uniqueRatio < 0.35) { score -= 30; flags.push("Low character variety — suspicious"); }
-
-  /* All-same */
-  if (/^(.)\1+$/.test(t)) { score -= 80; flags.push("All characters identical — fake pattern"); }
-
-  /* Sequential */
-  const seq  = "0123456789012345678901234567890";
-  const rseq = "9876543210987654321098765432109";
-  if (seq.includes(t) || rseq.includes(t)) { score -= 70; flags.push("Sequential number pattern — fake"); }
-
-  /* Fake keywords */
-  if ([/^TEST/,/^FAKE/,/^DUMMY/,/^SAMPLE/,/^ABCD/,/^XXXX/,/^QWER/].some(p => p.test(t))) {
-    score -= 70; flags.push("Known fake keyword prefix detected");
-  }
-
-  /* All digits */
-  if (/^\d+$/.test(t)) { score -= 10; flags.push("All digits — slightly suspicious"); }
-
-  /* Known bank prefixes */
-  const bankPfx = ["HDFC","ICIC","SBIN","AXIS","PYTM","YESB","KOTAK","IDFB","BARB","CNRB","UBIN",
-    "PUNB","ALLA","BKID","SIBL","CBIN","FDRL","INDB","JAKA","KARB","KVBL","LAVB","MAHB",
-    "NKGS","ORBC","RATN","SVCB","TMBL","TNSC","UTIB","VIJB","DCBL","GPAY","PAYTM",
-    "PHONEPE","BHIM","NEFT","RTGS","IMPS"];
-  if (bankPfx.some(p => t.startsWith(p))) { score = Math.min(100, score + 15); flags.push("✅ Recognized bank/UPI prefix"); }
-
-  /* Common format: prefix + digits */
-  if (/^[A-Z]{2,6}\d{6,16}$/.test(t)) { score = Math.min(100, score + 10); flags.push("✅ Matches common UTR format"); }
-
-  /* Year hint */
-  if (t.includes("2024") || t.includes("2025") || t.includes("2026")) { score = Math.min(100, score + 5); flags.push("✅ Contains year-like pattern"); }
-
-  /* High entropy */
-  if (uniqueRatio > 0.7 && t.length >= 12) { score = Math.min(100, score + 10); flags.push("✅ High entropy — consistent with real UTR"); }
-
-  score = Math.max(0, Math.min(100, score));
-  const verdict = score >= 75 ? "likely_real" : score >= 45 ? "suspicious" : "likely_fake";
-  return { score, flags, block: score < 30, verdict };
-}
-
-/* =================================================
-   ADMIN LOGIN
-================================================= */
-app.post("/admin/login", (req, res) => {
-  const { username, password } = req.body;
-  /* In production: hash passwords in DB. This is a simple check. */
-  const ADMIN_USER = process.env.ADMIN_USER || "admin";
-  const ADMIN_PASS = process.env.ADMIN_PASS || "Admin@1234";
-
-  if (username === ADMIN_USER && password === ADMIN_PASS) {
-    /* Generate simple session token */
-    const token = crypto.randomBytes(32).toString("hex");
-    res.json({ success: true, token, message: "Login successful" });
-  } else {
-    res.status(401).json({ success: false, message: "❌ Invalid username or password." });
-  }
+/* ── RAZORPAY ── */
+const razorpay = new Razorpay({
+  key_id:     process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-/* =================================================
-   SUBMIT UTR
-================================================= */
-app.post("/submit-utr", (req, res) => {
-  const { utrNumber, name, college_name, phone, email, event_id, photo } = req.body;
+/* ── MIDDLEWARE ── */
+app.use(cors());
+app.use("/webhook/razorpay", express.raw({ type: "application/json" }));
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+/* ── HEALTH CHECK ── */
+app.get("/", (_req, res) =>
+  res.json({ success: true, message: "Backend running 🚀" })
+);
+
+/* ── RAZORPAY: CREATE ORDER ── */
+app.post("/api/create-order", async (req, res) => {
+  const { name, college_name, phone, email, event_id } = req.body;
 
   if (!name || !college_name || !phone || !email || !event_id)
     return res.json({ success: false, message: "All registration fields are required." });
+  if (!/^\d{10}$/.test(phone))
+    return res.json({ success: false, message: "Enter a valid 10-digit phone number." });
+  if (!/\S+@\S+\.\S+/.test(email))
+    return res.json({ success: false, message: "Enter a valid email address." });
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET)
+    return res.json({ success: false, message: "Payment configuration error. Contact support." });
 
-  if (!utrNumber || utrNumber.trim().length < 10)
-    return res.json({ success: false, message: "❌ Invalid UTR. Must be at least 10 characters." });
+  try {
+    // Check duplicate
+    const { data: existing } = await supabase
+      .from("users")
+      .select("id")
+      .or(`phone.eq.${phone},email.eq.${email}`);
 
-  const cleanUTR = utrNumber.trim();
-  const analysis = analyzeUTR(cleanUTR);
+    if (existing && existing.length > 0)
+      return res.json({ success: false, message: "❌ This phone or email is already registered." });
 
-  console.log(`📥 submit-utr | User: ${name} | UTR: ${cleanUTR} | Score: ${analysis.score} | Verdict: ${analysis.verdict}`);
+    const orderOptions = {
+      amount:   100,
+      currency: "INR",
+      receipt:  `reg_${Date.now()}`,
+      notes:    { name, college_name, phone, email, event_id },
+    };
 
-  if (analysis.block)
-    return res.json({ success: false, message: `❌ UTR failed verification. ${analysis.flags[0]}` });
+    console.log("📦 Creating Razorpay order:", orderOptions);
+    const order = await razorpay.orders.create(orderOptions);
+    console.log("✅ Razorpay order created:", order);
 
-  /* Check blacklist */
-  db.query("SELECT id FROM utr_blacklist WHERE utr_number = ?", [cleanUTR.toUpperCase()], (err, black) => {
-    if (err) return res.json({ success: false, message: "Database error." });
-    if (black.length > 0) return res.json({ success: false, message: "❌ This UTR is blacklisted." });
+    // Pre-insert user with pending status
+    const { data: inserted, error: insertErr } = await supabase
+      .from("users")
+      .insert({
+        name,
+        college_name,
+        phone,
+        email,
+        event_id,
+        razorpay_order_id: order.id,
+        payment_status:    "pending",
+      })
+      .select()
+      .single();
 
-    /* Check duplicate UTR */
-    db.query("SELECT id FROM users WHERE utr_number = ?", [cleanUTR], (err, utrRow) => {
-      if (err) return res.json({ success: false, message: "Database error." });
-      if (utrRow.length > 0) return res.json({ success: false, message: "❌ This UTR has already been used." });
+    if (insertErr) throw insertErr;
 
-      /* Check duplicate phone/email */
-      db.query("SELECT id FROM users WHERE phone = ? OR email = ?", [phone, email], (err, userRow) => {
-        if (err) return res.json({ success: false, message: "Database error." });
-        if (userRow.length > 0) return res.json({ success: false, message: "❌ This phone or email is already registered." });
+    console.log(`📋 Order created | Order: ${order.id} | User: ${inserted.id}`);
 
-        const autoApprove = analysis.score >= 85 && analysis.verdict === "likely_real";
-        const initStatus = autoApprove ? "approved" : "pending";
-        const flagsJSON = JSON.stringify(analysis.flags);
-
-        db.query(
-          `INSERT INTO users (name, college_name, phone, email, event_id, utr_number, photo, payment_status, utr_score, utr_flags, auto_checked)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [name, college_name, phone, email, event_id, cleanUTR, photo || "", initStatus, analysis.score, flagsJSON, 1],
-          (err, result) => {
-            if (err) {
-              console.error("❌ Insert User Error:", err.message);
-              if (err.code === "ER_DUP_ENTRY") return res.json({ success: false, message: "❌ This UTR is already registered." });
-              return res.json({ success: false, message: "Registration failed. Try again." });
-            }
-
-            const userId = result.insertId;
-            const qrData = `${userId}-${event_id}`;
-
-            /* Save to transaction_history (non-blocking) */
-            db.query(
-              `INSERT INTO transaction_history (user_id, name, email, phone, event_id, utr_number, status, utr_score, utr_flags)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [userId, name, email, phone, event_id, cleanUTR, initStatus, analysis.score, flagsJSON],
-              err => { if (err) console.warn("⚠️ History insert:", err.message); }
-            );
-
-            if (analysis.verdict === "suspicious")
-              console.warn(`⚠️ Suspicious UTR | User: ${name} | UTR: ${cleanUTR} | Score: ${analysis.score}`);
-
-            console.log(`✅ Registered | User ID: ${userId} | Status: ${initStatus} | Score: ${analysis.score}`);
-
-            res.json({
-              success: true,
-              userId,
-              qrData,
-              autoApproved: autoApprove,
-              utrScore: analysis.score,
-              verdict: analysis.verdict,
-              message: autoApprove ? "✅ UTR auto-verified! Proceeding…" : "✅ UTR submitted. Awaiting admin approval.",
-            });
-          }
-        );
-      });
+    return res.json({
+      success:  true,
+      orderId:  order.id,
+      userId:   inserted.id,
+      amount:   order.amount,
+      currency: order.currency,
+      keyId:    process.env.RAZORPAY_KEY_ID,
     });
-  });
+
+  } catch (err) {
+    console.error("❌ Create order error:", JSON.stringify(err, null, 2));
+    if (err.code === "23505")
+      return res.json({ success: false, message: "❌ Already registered with this phone or email." });
+    const errMsg = err?.error?.description || err?.message || "Unknown error";
+    return res.json({ success: false, message: `Failed to create order: ${errMsg}` });
+  }
 });
 
-/* =================================================
-   GET USER PAYMENT STATUS (polled by frontend)
-================================================= */
-app.get("/user-status/:id", (req, res) => {
-  db.query(
-    "SELECT payment_status, utr_score FROM users WHERE id = ?",
-    [req.params.id],
-    (err, rows) => {
-      if (err || !rows.length) return res.json({ success: false });
-      res.json({ success: true, payment_status: rows[0].payment_status, utr_score: rows[0].utr_score });
+/* ── RAZORPAY: VERIFY PAYMENT ── */
+app.post("/api/verify-payment", async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature)
+    return res.json({ success: false, message: "Missing payment details." });
+
+  const expectedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+    .digest("hex");
+
+  if (expectedSignature !== razorpay_signature) {
+    console.warn("⚠️  Signature mismatch");
+    return res.json({ success: false, message: "❌ Payment verification failed. Signature mismatch." });
+  }
+
+  try {
+    // Update payment status
+    const { error: updateErr } = await supabase
+      .from("users")
+      .update({ payment_status: "approved", razorpay_payment_id })
+      .eq("razorpay_order_id", razorpay_order_id);
+
+    if (updateErr) throw updateErr;
+
+    // Fetch updated user
+    const { data: rows, error: fetchErr } = await supabase
+      .from("users")
+      .select("*")
+      .eq("razorpay_order_id", razorpay_order_id);
+
+    if (fetchErr) throw fetchErr;
+    if (!rows || !rows.length)
+      return res.json({ success: false, message: "User not found." });
+
+    const user   = rows[0];
+    const qrData = `${user.id}-${user.event_id}`;
+
+    // Insert transaction history (ignore duplicate)
+    await supabase.from("transaction_history").upsert({
+      user_id:             user.id,
+      name:                user.name,
+      email:               user.email,
+      phone:               user.phone,
+      event_id:            user.event_id,
+      razorpay_order_id,
+      razorpay_payment_id,
+      amount:              "100",
+      status:              "approved",
+    }, { onConflict: "razorpay_order_id" });
+
+    console.log(`✅ Payment verified | User: ${user.id} | Payment: ${razorpay_payment_id}`);
+
+    return res.json({
+      success: true,
+      userId:  user.id,
+      qrData,
+      message: "✅ Payment verified! Proceeding to photo.",
+    });
+
+  } catch (err) {
+    console.error("❌ Verify payment error:", err.message);
+    return res.json({ success: false, message: "Database error. Please contact support." });
+  }
+});
+
+/* ── RAZORPAY: WEBHOOK ── */
+app.post("/webhook/razorpay", async (req, res) => {
+  const signature = req.headers["x-razorpay-signature"];
+  const secret    = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  if (!secret) {
+    console.warn("⚠️  RAZORPAY_WEBHOOK_SECRET not set");
+    return res.status(400).json({ error: "Webhook secret not configured" });
+  }
+
+  const expectedSig = crypto
+    .createHmac("sha256", secret)
+    .update(req.body)
+    .digest("hex");
+
+  if (signature !== expectedSig) {
+    console.warn("⚠️  Invalid webhook signature");
+    return res.status(400).json({ error: "Invalid signature" });
+  }
+
+  let event;
+  try {
+    event = JSON.parse(req.body.toString());
+  } catch {
+    return res.status(400).json({ error: "Invalid JSON" });
+  }
+
+  if (event.event === "payment.captured") {
+    const payment = event.payload.payment.entity;
+    const orderId = payment.order_id;
+    const payId   = payment.id;
+    const amount  = payment.amount;
+
+    console.log(`🔔 Webhook: payment.captured | Order: ${orderId} | Amount: ₹${amount}`);
+
+    if (amount === 100) {
+      const { error } = await supabase
+        .from("users")
+        .update({ payment_status: "approved", razorpay_payment_id: payId })
+        .eq("razorpay_order_id", orderId)
+        .eq("payment_status", "pending");
+
+      if (error) console.warn("⚠️ Webhook DB update:", error.message);
+      else       console.log(`✅ Webhook approved user for order: ${orderId}`);
     }
-  );
+  }
+
+  res.json({ status: "ok" });
 });
 
-/* =================================================
-   ADMIN: GET ALL USERS (includes photo for thumbnail)
-================================================= */
-app.get("/admin/users", (req, res) => {
-  db.query(
-    `SELECT u.id, u.name, u.college_name, u.phone, u.email,
-            u.event_id, e.name AS event_name,
-            u.utr_number, u.payment_status, u.utr_score, u.utr_flags,
-            u.auto_checked, u.created_at, u.photo
-     FROM users u
-     LEFT JOIN events e ON e.id = u.event_id
-     ORDER BY u.id DESC`,
-    (err, rows) => {
-      if (err) {
-        /* Fallback without JOIN if events table has different id type */
-        db.query(
-          `SELECT id, name, college_name, phone, email, event_id,
-                  utr_number, payment_status, utr_score, utr_flags,
-                  auto_checked, created_at, photo
-           FROM users ORDER BY id DESC`,
-          (err2, rows2) => {
-            if (err2) return res.json([]);
-            res.json(rows2.map(r => ({ ...r, utr_flags: safeParseJSON(r.utr_flags) })));
-          }
-        );
-        return;
-      }
-      res.json(rows.map(r => ({ ...r, utr_flags: safeParseJSON(r.utr_flags) })));
-    }
-  );
+/* ── USER STATUS POLL ── */
+app.get("/user-status/:id", async (req, res) => {
+  const { data, error } = await supabase
+    .from("users")
+    .select("payment_status")
+    .eq("id", req.params.id)
+    .single();
+
+  if (error || !data) return res.json({ success: false });
+  res.json({ success: true, payment_status: data.payment_status });
 });
 
-function safeParseJSON(str) {
-  try { return JSON.parse(str || "[]"); } catch { return []; }
-}
+/* ── UPDATE PHOTO ── */
+app.post("/api/update-photo", async (req, res) => {
+  const { userId, photo } = req.body;
+  if (!userId || !photo)
+    return res.json({ success: false, message: "userId and photo required." });
 
-/* =================================================
-   ADMIN: APPROVE OR REJECT
-================================================= */
-app.post("/admin/update-status", (req, res) => {
+  const { error } = await supabase
+    .from("users")
+    .update({ photo })
+    .eq("id", userId);
+
+  if (error) return res.json({ success: false, message: error.message });
+  res.json({ success: true });
+});
+
+/* ── ADMIN LOGIN ── */
+app.post("/admin/login", (req, res) => {
+  const { username, password } = req.body;
+  if (username === process.env.ADMIN_USER && password === process.env.ADMIN_PASS) {
+    const token = crypto.randomBytes(32).toString("hex");
+    return res.json({ success: true, token, message: "Login successful" });
+  }
+  return res.status(401).json({ success: false, message: "❌ Invalid credentials." });
+});
+
+/* ── ADMIN: GET ALL USERS ── */
+app.get("/admin/users", async (_req, res) => {
+  const { data, error } = await supabase
+    .from("users")
+    .select(`
+      id, name, college_name, phone, email, event_id,
+      razorpay_order_id, razorpay_payment_id,
+      payment_status, created_at, photo,
+      events ( name )
+    `)
+    .order("id", { ascending: false });
+
+  if (error) return res.json([]);
+
+  // Flatten event name to match old shape
+  const rows = (data || []).map((u) => ({
+    ...u,
+    event_name: u.events?.name || null,
+    events:     undefined,
+  }));
+
+  res.json(rows);
+});
+
+/* ── ADMIN: APPROVE / REJECT ── */
+app.post("/admin/update-status", async (req, res) => {
   const { id, status } = req.body;
   if (!["approved", "rejected"].includes(status))
-    return res.json({ success: false, message: "Invalid status value." });
+    return res.json({ success: false, message: "Invalid status." });
 
-  db.query("UPDATE users SET payment_status = ? WHERE id = ?", [status, id], (err) => {
-    if (err) return res.json({ success: false });
+  const { error } = await supabase
+    .from("users")
+    .update({ payment_status: status })
+    .eq("id", id);
 
-    /* Update history (non-blocking) */
-    db.query("UPDATE transaction_history SET status = ? WHERE user_id = ?", [status, id], () => {});
+  if (error) return res.json({ success: false });
 
-    /* Blacklist UTR on rejection */
-    if (status === "rejected") {
-      db.query("SELECT utr_number FROM users WHERE id = ?", [id], (err, rows) => {
-        if (!err && rows.length)
-          db.query("INSERT IGNORE INTO utr_blacklist (utr_number, reason) VALUES (?, 'Rejected by admin')", [rows[0].utr_number], () => {});
-      });
-    }
+  await supabase
+    .from("transaction_history")
+    .update({ status })
+    .eq("user_id", id);
 
-    console.log(`✅ User ${id} → ${status}`);
-    res.json({ success: true, message: `Status updated to ${status}` });
-  });
+  res.json({ success: true, message: `Status updated → ${status}` });
 });
 
-/* =================================================
-   ADMIN: BULK AUTO-APPROVE
-================================================= */
-app.post("/admin/bulk-approve", (req, res) => {
-  const threshold = Number(req.body.threshold) || 80;
-  db.query(
-    "SELECT id, name, utr_number FROM users WHERE payment_status = 'pending' AND utr_score >= ?",
-    [threshold],
-    (err, rows) => {
-      if (err) return res.json({ success: false });
-      if (!rows.length) return res.json({ success: true, approved: 0, message: "No eligible users." });
-
-      const ids = rows.map(r => r.id);
-      const placeholders = ids.map(() => "?").join(",");
-
-      db.query(`UPDATE users SET payment_status = 'approved' WHERE id IN (${placeholders})`, ids, (err) => {
-        if (err) return res.json({ success: false });
-        db.query(`UPDATE transaction_history SET status = 'approved' WHERE user_id IN (${placeholders})`, ids, () => {});
-        console.log(`✅ Bulk approved ${ids.length} users (score >= ${threshold})`);
-        res.json({ success: true, approved: ids.length, users: rows.map(r => r.name) });
-      });
-    }
-  );
-});
-
-/* =================================================
-   ADMIN: RE-ANALYZE UTR
-================================================= */
-app.post("/admin/reanalyze/:id", (req, res) => {
-  db.query("SELECT utr_number FROM users WHERE id = ?", [req.params.id], (err, rows) => {
-    if (err || !rows.length) return res.json({ success: false });
-    const analysis = analyzeUTR(rows[0].utr_number);
-    db.query(
-      "UPDATE users SET utr_score = ?, utr_flags = ?, auto_checked = 1 WHERE id = ?",
-      [analysis.score, JSON.stringify(analysis.flags), req.params.id],
-      (err) => {
-        if (err) return res.json({ success: false });
-        res.json({ success: true, score: analysis.score, verdict: analysis.verdict, flags: analysis.flags });
-      }
-    );
-  });
-});
-
-/* =================================================
-   MARK ATTENDANCE VIA QR SCAN
-================================================= */
-app.post("/mark-attendance", (req, res) => {
+/* ── MARK ATTENDANCE ── */
+app.post("/mark-attendance", async (req, res) => {
   const { qrData } = req.body;
   if (!qrData) return res.json({ success: false, message: "QR data missing." });
 
   const [userId, eventId] = qrData.split("-");
-  if (!userId || !eventId) return res.json({ success: false, message: "Invalid QR format." });
+  if (!userId || !eventId)
+    return res.json({ success: false, message: "Invalid QR format." });
 
-  db.query("SELECT * FROM users WHERE id = ?", [userId], (err, userRows) => {
-    if (err) return res.json({ success: false, message: "Database error." });
-    if (!userRows.length) return res.json({ success: false, message: "❌ User not found." });
+  const { data: user, error: userErr } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", userId)
+    .single();
 
-    const user = userRows[0];
-    if (user.payment_status !== "approved")
-      return res.json({ success: false, message: "❌ Payment not approved for this user." });
+  if (userErr || !user)
+    return res.json({ success: false, message: "❌ User not found." });
+  if (user.payment_status !== "approved")
+    return res.json({ success: false, message: "❌ Payment not approved." });
 
-    db.query("SELECT id FROM attendance WHERE user_id = ?", [userId], (err, attRows) => {
-      if (err) return res.json({ success: false, message: "Database error." });
-      if (attRows.length)
-        return res.json({
-          success: false,
-          message: "⚠️ Attendance already marked.",
-          user: { name: user.name, college_name: user.college_name, phone: user.phone, event_id: user.event_id },
-        });
+  const { data: existing } = await supabase
+    .from("attendance")
+    .select("id")
+    .eq("user_id", userId)
+    .single();
 
-      db.query(
-        "INSERT INTO attendance (user_id, name, event_id, phone) VALUES (?, ?, ?, ?)",
-        [user.id, user.name, eventId, user.phone],
-        (err) => {
-          if (err) return res.json({ success: false, message: "Failed to mark attendance." });
-          res.json({
-            success: true,
-            message: "✅ Attendance marked!",
-            user: { name: user.name, college_name: user.college_name, phone: user.phone, event_id: user.event_id },
-          });
-        }
-      );
+  if (existing)
+    return res.json({
+      success: false,
+      message: "⚠️ Attendance already marked.",
+      user: { name: user.name, college_name: user.college_name, phone: user.phone },
     });
+
+  const { error: attErr } = await supabase
+    .from("attendance")
+    .insert({ user_id: user.id, name: user.name, event_id: eventId, phone: user.phone });
+
+  if (attErr)
+    return res.json({ success: false, message: "Failed to mark attendance." });
+
+  res.json({
+    success: true,
+    message: "✅ Attendance marked!",
+    user: { name: user.name, college_name: user.college_name, phone: user.phone },
   });
 });
 
-/* =================================================
-   EVENTS
-================================================= */
-app.get("/events", (req, res) => {
-  db.query("SELECT * FROM events ORDER BY date ASC", (err, rows) => {
-    if (err) return res.json({ success: false, data: [] });
-    res.json({ success: true, data: rows });
-  });
+/* ── EVENTS ── */
+app.get("/events", async (_req, res) => {
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .order("date", { ascending: true });
+
+  if (error) return res.json({ success: false, data: [] });
+  res.json({ success: true, data });
 });
 
-app.post("/events", (req, res) => {
+app.post("/events", async (req, res) => {
   const { name, description, date, venue } = req.body;
   if (!name) return res.json({ success: false, message: "Event name required." });
-  db.query(
-    "INSERT INTO events (name, description, date, venue) VALUES (?, ?, ?, ?)",
-    [name, description || "", date || null, venue || ""],
-    (err, result) => {
-      if (err) return res.json({ success: false, message: err.message });
-      res.json({ success: true, id: result.insertId });
-    }
-  );
+
+  const { data, error } = await supabase
+    .from("events")
+    .insert({ name, description: description || "", date: date || null, venue: venue || "" })
+    .select()
+    .single();
+
+  if (error) return res.json({ success: false, message: error.message });
+  res.json({ success: true, id: data.id });
 });
 
-/* =================================================
-   TRANSACTION HISTORY
-================================================= */
-app.get("/transaction-history", (req, res) => {
-  db.query("SELECT * FROM transaction_history ORDER BY paid_at DESC", (err, rows) => {
-    if (err) return res.json({ success: false, data: [] });
-    res.json({ success: true, data: rows });
-  });
+/* ── TRANSACTION HISTORY ── */
+app.get("/transaction-history", async (_req, res) => {
+  const { data, error } = await supabase
+    .from("transaction_history")
+    .select("*")
+    .order("paid_at", { ascending: false });
+
+  if (error) return res.json({ success: false, data: [] });
+  res.json({ success: true, data });
 });
 
-/* =================================================
-   VERIFY USER
-================================================= */
-app.get("/verify-user/:id", (req, res) => {
-  db.query("SELECT * FROM users WHERE id = ?", [req.params.id], (err, rows) => {
-    if (err || !rows.length) return res.json({ success: false, message: "User not found." });
-    const user = rows[0];
-    if (user.payment_status !== "approved")
-      return res.json({ success: false, message: "Payment not approved yet." });
-    res.json({ success: true, user });
-  });
+/* ── VERIFY USER (QR scan) ── */
+app.get("/verify-user/:id", async (req, res) => {
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", req.params.id)
+    .single();
+
+  if (error || !user)
+    return res.json({ success: false, message: "Not found." });
+  if (user.payment_status !== "approved")
+    return res.json({ success: false, message: "Not approved yet." });
+
+  res.json({ success: true, user });
 });
 
-/* =================================================
-   FEEDBACK
-================================================= */
-app.post("/api/feedback", (req, res) => {
+/* ── FEEDBACK ── */
+app.post("/api/feedback", async (req, res) => {
   const { user_name, user_id, event_name, rating, comment } = req.body;
   if (!user_name || !user_id || !event_name || !rating || !comment)
     return res.status(400).json({ success: false, message: "All fields required." });
-  db.query(
-    "INSERT INTO feedback (user_name, user_id, event_name, rating, comment) VALUES (?, ?, ?, ?, ?)",
-    [user_name, user_id, event_name, rating, comment],
-    (err) => {
-      if (err) return res.status(500).json({ success: false });
-      res.json({ success: true, message: "Feedback submitted." });
-    }
-  );
+
+  const { error } = await supabase
+    .from("feedback")
+    .insert({ user_name, user_id, event_name, rating, comment });
+
+  if (error) return res.status(500).json({ success: false });
+  res.json({ success: true, message: "Feedback submitted." });
 });
 
-app.get("/api/feedback", (req, res) => {
-  db.query("SELECT * FROM feedback ORDER BY id DESC", (err, rows) => {
-    if (err) return res.status(500).json({ success: false });
-    res.json(rows);
-  });
+app.get("/api/feedback", async (_req, res) => {
+  const { data, error } = await supabase
+    .from("feedback")
+    .select("*")
+    .order("id", { ascending: false });
+
+  if (error) return res.status(500).json({ success: false });
+  res.json(data);
 });
 
-/* =========================
-   START SERVER
-========================= */
+/* ── AI FIELD VALIDATION PROXY ── */
+app.post("/api/validate-field", async (req, res) => {
+  const { field, value } = req.body;
+  if (!field || !value) return res.json({ success: true, valid: true, reason: "OK" });
+
+  const rules = {
+    name:         { test: (v) => v.trim().length >= 2,           reason: "Enter a valid full name." },
+    college_name: { test: (v) => v.trim().length >= 3,           reason: "Enter your college name." },
+    phone:        { test: (v) => /^\d{10}$/.test(v.trim()),      reason: "Enter a valid 10-digit mobile number." },
+    email:        { test: (v) => /\S+@\S+\.\S+/.test(v.trim()), reason: "Enter a valid email address." },
+  };
+
+  const rule = rules[field];
+  if (!rule) return res.json({ success: true, valid: true, reason: "OK" });
+
+  try {
+    const aiResp = await axios.post(`${AI_SERVICE}/ai/validate-field`, { field, value }, { timeout: 5000 });
+    if (aiResp.data?.success !== undefined) return res.json(aiResp.data);
+  } catch { /* fall through to local validation */ }
+
+  const isValid = rule.test(value);
+  return res.json({ success: true, valid: isValid, reason: isValid ? "Looks good!" : rule.reason });
+});
+
+/* ── START SERVER ── */
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`💳 Razorpay Key ID: ${process.env.RAZORPAY_KEY_ID ? "✅ Loaded" : "❌ Missing!"}`);
+  console.log(`🔑 Razorpay Secret: ${process.env.RAZORPAY_KEY_SECRET ? "✅ Loaded" : "❌ Missing!"}`);
+  console.log(`🔔 Webhook Secret:  ${process.env.RAZORPAY_WEBHOOK_SECRET ? "✅ Loaded" : "❌ Missing!"}`);
+  console.log(`🗄️  Supabase URL:    ${process.env.SUPABASE_URL ? "✅ Loaded" : "❌ Missing!"}`);
 });

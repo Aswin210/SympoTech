@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import axios from "axios";
 import QRCode from "react-qr-code";
 import { useLocation } from "react-router-dom";
@@ -7,1031 +7,480 @@ import html2canvas from "html2canvas";
 
 const API = "http://localhost:5000";
 
-function Register() {
-  const location = useLocation();
-  const eventId = location.state?.eventId || "";
+/* ─────────────────────────────────────────────────────
+   PAYMENT PROCESSING OVERLAY
+───────────────────────────────────────────────────── */
+const PaymentOverlay = ({ status }) => (
+  <div style={{
+    position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+    display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999,
+  }}>
+    <div style={{
+      background: "#fff", borderRadius: 20, padding: "36px 40px",
+      textAlign: "center", maxWidth: 340, width: "90%",
+      boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+    }}>
+      <div style={{ fontSize: 48, marginBottom: 12 }}>
+        {status === "verifying" ? "🔐" : status === "success" ? "✅" : "⏳"}
+      </div>
+      <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111", marginBottom: 8 }}>
+        {status === "verifying" ? "Verifying Payment..." : status === "success" ? "Payment Verified!" : "Processing..."}
+      </h3>
+      <p style={{ fontSize: 13, color: "#6b7280" }}>
+        {status === "verifying"
+          ? "Checking your payment with Razorpay..."
+          : "Payment confirmed! Setting up your registration..."}
+      </p>
+    </div>
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────
+   STEP INDICATOR
+───────────────────────────────────────────────────── */
+const StepIndicator = ({ current }) => {
+  const steps = ["Form", "Pay", "Photo", "ID Card"];
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
+      {steps.map((label, i) => {
+        const num    = i + 1;
+        const done   = current > num;
+        const active = current === num;
+        return (
+          <div key={i} style={{ display: "flex", alignItems: "center" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: "50%",
+                background: (done || active) ? "#6366f1" : "#e5e7eb",
+                color: (done || active) ? "#fff" : "#9ca3af",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 13, fontWeight: 700, margin: "0 auto 4px",
+                transition: "all 0.3s",
+                boxShadow: active ? "0 0 0 3px rgba(99,102,241,0.25)" : "none",
+              }}>
+                {done ? "✓" : num}
+              </div>
+              <span style={{
+                fontSize: 10,
+                color: (active || done) ? "#6366f1" : "#9ca3af",
+                fontWeight: active ? 700 : 500,
+              }}>
+                {label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{
+                width: 28, height: 2,
+                background: done ? "#6366f1" : "#e5e7eb",
+                margin: "0 4px 14px",
+                transition: "background 0.3s",
+              }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────
+   FORM FIELD
+───────────────────────────────────────────────────── */
+const FormField = ({ label, name, type, placeholder, value, onChange, onBlur, error, aiResult, loading }) => (
+  <div style={{ marginBottom: 10 }}>
+    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 5 }}>
+      {label}
+    </label>
+    <div style={{ position: "relative" }}>
+      <input
+        name={name}
+        type={type || "text"}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        autoComplete="off"
+        style={{
+          width: "100%", padding: "11px 13px", fontSize: 14,
+          borderRadius: 9, border: `1.5px solid ${error ? "#f87171" : "#d1d5db"}`,
+          marginBottom: 4, boxSizing: "border-box", background: "#fafafa",
+          outline: "none", transition: "border-color 0.2s",
+          paddingRight: loading ? 36 : 13,
+        }}
+      />
+      {loading && (
+        <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14 }}>
+          🔄
+        </span>
+      )}
+    </div>
+    {error && <p style={{ fontSize: 11, color: "#dc2626", marginBottom: 8 }}>⚠️ {error}</p>}
+    {aiResult?.valid && !error && (
+      <p style={{ fontSize: 11, color: "#16a34a", marginBottom: 6 }}>✅ {aiResult.reason}</p>
+    )}
+  </div>
+);
+
+/* ═══════════════════════════════════════════════════
+   LOAD RAZORPAY SCRIPT DYNAMICALLY
+═══════════════════════════════════════════════════ */
+function loadRazorpayScript() {
+  return new Promise((resolve) => {
+    if (document.getElementById("razorpay-script")) {
+      resolve(true);
+      return;
+    }
+    const script    = document.createElement("script");
+    script.id       = "razorpay-script";
+    script.src      = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload   = () => resolve(true);
+    script.onerror  = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   MAIN COMPONENT
+═══════════════════════════════════════════════════ */
+export default function Register() {
+  const location  = useLocation();
+  const eventId   = location.state?.eventId   || "";
   const eventName = location.state?.eventName || "No Event Selected";
 
-  const [formData, setFormData] = useState({
-    name: "",
-    college_name: "",
-    phone: "",
-    email: "",
-    event_id: eventId,
-  });
+  const [formData,     setFormData]     = useState({ name: "", college_name: "", phone: "", email: "", event_id: eventId });
+  const [fieldErrors,  setFieldErrors]  = useState({});
+  const [fieldAI,      setFieldAI]      = useState({});
+  const [fieldLoading, setFieldLoading] = useState({});
 
-  const [step, setStep] = useState(1);
-  const [userId, setUserId] = useState("");
-  const [qrData, setQrData] = useState("");
-  const [photo, setPhoto] = useState("");
-  const [utrNumber, setUtrNumber] = useState("");
-  const [utrError, setUtrError] = useState("");
-  const [utrScore, setUtrScore] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [polling, setPolling] = useState(false);
-  const [pollStatus, setPollStatus] = useState("");
-  const [autoApproved, setAutoApproved] = useState(false);
+  const [step,          setStep]          = useState(1);
+  const [userId,        setUserId]        = useState("");
+  const [qrData,        setQrData]        = useState("");
+  const [photo,         setPhoto]         = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("idle");
+  const [paymentError,  setPaymentError]  = useState("");
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
-  // ── NEW: payment screenshot state ──
-  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
-  const [screenshotPreview, setScreenshotPreview] = useState("");
-  const [screenshotError, setScreenshotError] = useState("");
-  const screenshotInputRef = useRef(null);
-  // ── END NEW ──
-
-  const videoRef = useRef(null);
+  const videoRef  = useRef(null);
   const canvasRef = useRef(null);
   const idCardRef = useRef(null);
   const streamRef = useRef(null);
-  const pollRef = useRef(null);
 
-  const YOUR_UPI_ID = "arunsekar664@okaxis";
-  const AMOUNT = "1";
-  const PAYEE_NAME = "CollegeEvent";
-  const upiQRValue = `upi://pay?pa=${YOUR_UPI_ID}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${AMOUNT}&cu=INR`;
+  /* ── Form handlers ── */
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+  };
 
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+  const validateFieldAI = useCallback(async (field, value) => {
+    if (!value || value.trim().length < 2) return;
+    setFieldLoading((prev) => ({ ...prev, [field]: true }));
+    try {
+      const resp = await axios.post(`${API}/api/validate-field`, { field, value });
+      if (resp.data?.success) {
+        setFieldAI((prev) => ({ ...prev, [field]: resp.data }));
+        if (!resp.data.valid) {
+          setFieldErrors((prev) => ({ ...prev, [field]: resp.data.reason }));
+        }
+      }
+    } catch { /* AI unavailable */ }
+    finally {
+      setFieldLoading((prev) => ({ ...prev, [field]: false }));
+    }
   }, []);
 
-  const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleBlur = useCallback((e) => {
+    validateFieldAI(e.target.name, e.target.value);
+  }, [validateFieldAI]);
 
-  /* ══════════════════════════════════════════
-     NEW: HANDLE PAYMENT SCREENSHOT UPLOAD
-  ══════════════════════════════════════════ */
-  const handleScreenshotChange = (e) => {
-    setScreenshotError("");
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      setScreenshotError("Only JPG, PNG, or WEBP images are allowed.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setScreenshotError("File size must be under 5 MB.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPaymentScreenshot(reader.result);
-      setScreenshotPreview(reader.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const removeScreenshot = () => {
-    setPaymentScreenshot(null);
-    setScreenshotPreview("");
-    setScreenshotError("");
-    if (screenshotInputRef.current) screenshotInputRef.current.value = "";
-  };
-  /* ══════════════════════════════════════════
-     END NEW
-  ══════════════════════════════════════════ */
-
-  /* ══════════════════════════════════════════
-     CLIENT-SIDE UTR FORMAT VALIDATION
-     (Server does deeper analysis — this is UX-level)
-  ══════════════════════════════════════════ */
-  const validateUTRClient = (utr) => {
-    const t = utr.trim();
-    if (!t)
-      return { valid: false, msg: "Please enter your UTR / Transaction ID." };
-    if (t.length < 10)
-      return { valid: false, msg: "UTR must be at least 10 characters." };
-    if (t.length > 22)
-      return { valid: false, msg: "UTR must not exceed 22 characters." };
-    if (!/^[a-zA-Z0-9]+$/.test(t))
-      return {
-        valid: false,
-        msg: "Only letters and numbers allowed. No spaces or special characters.",
-      };
-    if (/^(.)\1+$/.test(t))
-      return {
-        valid: false,
-        msg: "❌ This looks fake — all characters are the same.",
-      };
-    const seq = "0123456789012345678901234567890";
-    if (seq.includes(t))
-      return {
-        valid: false,
-        msg: "❌ Sequential numbers are not a valid UTR.",
-      };
-    const fakeKw = [
-      /^test/i,
-      /^fake/i,
-      /^dummy/i,
-      /^sample/i,
-      /^1234/,
-      /^0000/,
-      /^9999/,
-    ];
-    for (const p of fakeKw)
-      if (p.test(t))
-        return {
-          valid: false,
-          msg: "❌ Invalid UTR — please enter the real one from your payment app.",
-        };
-    return { valid: true };
-  };
-
-  /* Live UTR strength indicator */
-  const getUTRStrength = (utr) => {
-    if (!utr || utr.length < 5) return null;
-    const t = utr.trim().toUpperCase();
-    const uniqueRatio = new Set(t.split("")).size / t.length;
-    const bankPrefixes = [
-      "HDFC",
-      "ICIC",
-      "SBIN",
-      "AXIS",
-      "PYTM",
-      "YESB",
-      "KOTAK",
-      "GPAY",
-      "NEFT",
-      "RTGS",
-      "IMPS",
-    ];
-    const hasPrefix = bankPrefixes.some((p) => t.startsWith(p));
-    const hasMixed = /[A-Z]/.test(t) && /\d/.test(t);
-    if (uniqueRatio > 0.6 && hasMixed && t.length >= 12)
-      return { label: "Strong", color: "#16a34a", width: "85%" };
-    if (hasPrefix || (hasMixed && t.length >= 10))
-      return { label: "Good", color: "#2563eb", width: "60%" };
-    if (uniqueRatio < 0.25)
-      return { label: "Weak", color: "#dc2626", width: "20%" };
-    return { label: "Fair", color: "#d97706", width: "40%" };
-  };
-
-  const strength = getUTRStrength(utrNumber);
-
-  /* ══════════════════════════════════════════
-     STEP 1 → STEP 2
-  ══════════════════════════════════════════ */
+  /* ── Step 1 → 2 ── */
   const handleShowPayment = (e) => {
     e.preventDefault();
+    const errs = {};
+    if (!formData.name.trim())                errs.name         = "Name is required.";
+    if (!formData.college_name.trim())        errs.college_name = "College name is required.";
+    if (!/^\d{10}$/.test(formData.phone))     errs.phone        = "Enter a valid 10-digit phone number.";
+    if (!/\S+@\S+\.\S+/.test(formData.email)) errs.email        = "Enter a valid email address.";
+    if (Object.keys(errs).length) { setFieldErrors(errs); return; }
     setStep(2);
-    setUtrError("");
+    setPaymentError("");
   };
 
-  /* ══════════════════════════════════════════
-     SUBMIT UTR
-  ══════════════════════════════════════════ */
-  const submitUTR = async () => {
-    setUtrError("");
-    const check = validateUTRClient(utrNumber);
-    if (!check.valid) {
-      setUtrError(check.msg);
-      return;
-    }
-
-    setSubmitting(true);
+  /* ── Razorpay ── */
+  const startRazorpayPayment = async () => {
+    setPaymentError("");
+    setCreatingOrder(true);
     try {
-      const res = await axios.post(`${API}/submit-utr`, {
-        utrNumber: utrNumber.trim(),
-        amount: AMOUNT,
-        ...formData,
-        photo,
-        paymentScreenshot, // ── NEW: send screenshot to backend ──
-      });
-
-      if (res.data.success) {
-        setUserId(res.data.userId);
-        setQrData(res.data.qrData);
-        setUtrScore(res.data.utrScore);
-
-        if (res.data.autoApproved) {
-          /* High-score UTR — skip waiting, go straight to camera */
-          setAutoApproved(true);
-          setStep(4);
-        } else {
-          setStep(3);
-          startPolling(res.data.userId);
-        }
-      } else {
-        setUtrError(res.data.message || "Submission failed. Please try again.");
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        setPaymentError("Failed to load Razorpay. Check your internet connection.");
+        setCreatingOrder(false);
+        return;
       }
-    } catch {
-      setUtrError("Server error. Please make sure backend is running.");
-    } finally {
-      setSubmitting(false);
+
+      const orderRes = await axios.post(`${API}/api/create-order`, { ...formData, event_id: eventId });
+      if (!orderRes.data.success) {
+        setPaymentError(orderRes.data.message || "Failed to create order.");
+        setCreatingOrder(false);
+        return;
+      }
+
+      const { orderId, userId: newUserId, keyId, amount, currency } = orderRes.data;
+      setUserId(newUserId);
+      setCreatingOrder(false);
+      setPaymentStatus("processing");
+
+      const options = {
+        key: keyId, amount, currency, order_id: orderId,
+        name: "Sympo-Tech",
+        description: `Event Registration — ${eventName}`,
+        image: "",
+        prefill: { name: formData.name, email: formData.email, contact: formData.phone },
+        theme: { color: "#6366f1" },
+        modal: {
+          ondismiss: () => {
+            setPaymentStatus("idle");
+            setPaymentError("Payment cancelled. Please try again.");
+          },
+        },
+        handler: async (response) => {
+          setPaymentStatus("verifying");
+          try {
+            const verifyRes = await axios.post(`${API}/api/verify-payment`, {
+              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature:  response.razorpay_signature,
+              userId:              newUserId,
+            });
+            if (verifyRes.data.success) {
+              setQrData(verifyRes.data.qrData);
+              setUserId(verifyRes.data.userId);
+              setPaymentStatus("success");
+              setTimeout(() => { setPaymentStatus("idle"); setStep(3); }, 1200);
+            } else {
+              setPaymentStatus("idle");
+              setPaymentError(verifyRes.data.message || "Payment verification failed. Contact support.");
+            }
+          } catch {
+            setPaymentStatus("idle");
+            setPaymentError("Verification error. Contact support with payment ID: " + response.razorpay_payment_id);
+          }
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", (response) => {
+        setPaymentStatus("idle");
+        setPaymentError(`Payment failed: ${response.error.description}. Please try again.`);
+      });
+      rzp.open();
+
+    } catch (err) {
+      setCreatingOrder(false);
+      setPaymentStatus("idle");
+      setPaymentError(err.response?.data?.message || "Something went wrong. Please try again.");
     }
   };
 
-  /* ══════════════════════════════════════════
-     POLL STATUS
-  ══════════════════════════════════════════ */
-  const startPolling = (uid) => {
-    setPolling(true);
-    setPollStatus("⏳ Waiting for admin to verify your payment...");
-
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await axios.get(`${API}/user-status/${uid}`);
-        if (res.data.success) {
-          if (res.data.payment_status === "approved") {
-            clearInterval(pollRef.current);
-            setPolling(false);
-            setPollStatus("✅ Payment Verified!");
-            setTimeout(() => setStep(4), 800);
-          } else if (res.data.payment_status === "rejected") {
-            clearInterval(pollRef.current);
-            setPolling(false);
-            setPollStatus("❌ Payment rejected. Please contact support.");
-          } else {
-            setPollStatus("⏳ Admin is reviewing your payment... please wait.");
-          }
-        }
-      } catch {
-        setPollStatus("⚠️ Checking status... please wait.");
-      }
-    }, 5000);
-  };
-
-  /* ══════════════════════════════════════════
-     CAMERA
-  ══════════════════════════════════════════ */
+  /* ── Camera ── */
   const openCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false,
-      });
-      streamRef.current = stream;
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current          = stream;
       videoRef.current.srcObject = stream;
       videoRef.current.play();
     } catch {
-      alert("Camera access denied");
+      alert("Camera access denied. Please allow camera permissions.");
     }
   };
 
-  const capturePhoto = () => {
-    const video = videoRef.current;
+  const capturePhoto = async () => {
+    const video  = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
+    canvas.width  = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
-    setPhoto(canvas.toDataURL("image/png"));
-    if (streamRef.current)
-      streamRef.current.getTracks().forEach((t) => t.stop());
-    setStep(5);
+    const photoData = canvas.toDataURL("image/png");
+    setPhoto(photoData);
+    if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
+    try {
+      await axios.post(`${API}/api/update-photo`, { userId, photo: photoData });
+    } catch { /* non-critical */ }
+    setStep(4);
   };
 
-  /* ══════════════════════════════════════════
-     DOWNLOAD ID CARD
-  ══════════════════════════════════════════ */
+  const skipPhoto    = () => { setPhoto(""); setStep(4); };
   const downloadCard = () => {
     html2canvas(idCardRef.current).then((canvas) => {
-      const link = document.createElement("a");
+      const link    = document.createElement("a");
       link.download = "Event_ID_Card.png";
-      link.href = canvas.toDataURL();
+      link.href     = canvas.toDataURL();
       link.click();
     });
   };
 
-  /* ══════════════════════════════════════════
-     STYLES
-  ══════════════════════════════════════════ */
-  const s = {
-    page: { minHeight: "100vh", backgroundColor: "#f3f4f6" },
-    container: {
-      maxWidth: "480px",
-      margin: "0 auto",
-      padding: "24px 16px",
-      textAlign: "center",
-    },
-    title: {
-      fontSize: "24px",
-      fontWeight: "700",
-      color: "#111827",
-      marginBottom: "6px",
-    },
-    subtitle: { fontSize: "14px", color: "#6b7280", marginBottom: "24px" },
-    card: {
-      background: "#fff",
-      borderRadius: "14px",
-      padding: "24px",
-      marginBottom: "16px",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-      textAlign: "left",
-    },
-    label: {
-      fontSize: "13px",
-      fontWeight: "600",
-      color: "#374151",
-      marginBottom: "6px",
-      display: "block",
-    },
-    hint: { fontSize: "12px", color: "#9ca3af", marginBottom: "10px" },
-    input: {
-      width: "100%",
-      padding: "12px 14px",
-      fontSize: "14px",
-      borderRadius: "8px",
-      border: "1px solid #d1d5db",
-      marginBottom: "12px",
-      boxSizing: "border-box",
-      outline: "none",
-      backgroundColor: "#fafafa",
-    },
-    primaryBtn: {
-      width: "100%",
-      padding: "14px",
-      backgroundColor: "#4f46e5",
-      color: "#fff",
-      border: "none",
-      borderRadius: "10px",
-      fontSize: "15px",
-      fontWeight: "700",
-      cursor: "pointer",
-      marginTop: "8px",
-    },
-    greenBtn: {
-      width: "100%",
-      padding: "14px",
-      backgroundColor: "#16a34a",
-      color: "#fff",
-      border: "none",
-      borderRadius: "10px",
-      fontSize: "15px",
-      fontWeight: "700",
-      cursor: "pointer",
-      marginTop: "8px",
-    },
-    cyanBtn: {
-      width: "100%",
-      padding: "14px",
-      backgroundColor: "#0891b2",
-      color: "#fff",
-      border: "none",
-      borderRadius: "10px",
-      fontSize: "15px",
-      fontWeight: "700",
-      cursor: "pointer",
-      marginTop: "12px",
-    },
-    disabledBtn: {
-      width: "100%",
-      padding: "14px",
-      backgroundColor: "#9ca3af",
-      color: "#fff",
-      border: "none",
-      borderRadius: "10px",
-      fontSize: "15px",
-      fontWeight: "700",
-      cursor: "not-allowed",
-      marginTop: "4px",
-    },
-    errorBox: {
-      backgroundColor: "#fef2f2",
-      border: "1px solid #fca5a5",
-      borderRadius: "8px",
-      padding: "10px 14px",
-      marginBottom: "12px",
-      fontSize: "13px",
-      color: "#b91c1c",
-      textAlign: "left",
-    },
-    infoBox: {
-      backgroundColor: "#eff6ff",
-      border: "1px solid #bfdbfe",
-      borderRadius: "8px",
-      padding: "10px 14px",
-      marginBottom: "16px",
-      fontSize: "13px",
-      color: "#1e40af",
-      textAlign: "left",
-    },
-    warningBox: {
-      backgroundColor: "#fefce8",
-      border: "1px solid #fde047",
-      borderRadius: "8px",
-      padding: "10px 14px",
-      marginBottom: "16px",
-      fontSize: "13px",
-      color: "#854d0e",
-      textAlign: "left",
-    },
-    successBox: {
-      backgroundColor: "#f0fdf4",
-      border: "1px solid #86efac",
-      borderRadius: "8px",
-      padding: "12px 14px",
-      marginBottom: "16px",
-      fontSize: "13px",
-      color: "#166534",
-      textAlign: "left",
-    },
-    qrWrapper: {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      backgroundColor: "#f9fafb",
-      border: "1px solid #e5e7eb",
-      borderRadius: "12px",
-      padding: "20px",
-      marginBottom: "16px",
-    },
-    backBtn: {
-      background: "none",
-      border: "none",
-      color: "#6b7280",
-      cursor: "pointer",
-      textDecoration: "underline",
-      fontSize: "13px",
-      marginTop: "12px",
-      display: "block",
-      width: "100%",
-      textAlign: "center",
-    },
-    idCard: {
-      border: "2px solid #4f46e5",
-      width: "300px",
-      margin: "auto",
-      padding: "20px",
-      borderRadius: "14px",
-      backgroundColor: "#fff",
-      boxShadow: "0 4px 12px rgba(79,70,229,0.15)",
-    },
-    stepBadge: (active) => ({
-      display: "inline-block",
-      width: 28,
-      height: 28,
-      borderRadius: "50%",
-      backgroundColor: active ? "#4f46e5" : "#e5e7eb",
-      color: active ? "#fff" : "#6b7280",
-      fontSize: 13,
-      fontWeight: 700,
-      lineHeight: "28px",
-      textAlign: "center",
-      margin: "0 4px",
-    }),
-    // ── NEW: screenshot upload styles ──
-    uploadZone: {
-      border: "2px dashed #d1d5db",
-      borderRadius: "10px",
-      padding: "18px 14px",
-      textAlign: "center",
-      cursor: "pointer",
-      backgroundColor: "#f9fafb",
-      marginBottom: "14px",
-      transition: "border-color 0.2s",
-    },
-    uploadZoneActive: {
-      border: "2px dashed #4f46e5",
-      borderRadius: "10px",
-      padding: "18px 14px",
-      textAlign: "center",
-      cursor: "pointer",
-      backgroundColor: "#eef2ff",
-      marginBottom: "14px",
-    },
-    screenshotPreviewBox: {
-      position: "relative",
-      marginBottom: "14px",
-      borderRadius: "10px",
-      overflow: "hidden",
-      border: "1px solid #e5e7eb",
-    },
-    screenshotImg: {
-      width: "100%",
-      maxHeight: "200px",
-      objectFit: "cover",
-      display: "block",
-      borderRadius: "8px",
-    },
-    removeBtn: {
-      position: "absolute",
-      top: "8px",
-      right: "8px",
-      background: "#ef4444",
-      color: "#fff",
-      border: "none",
-      borderRadius: "50%",
-      width: "26px",
-      height: "26px",
-      fontSize: "14px",
-      fontWeight: "700",
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      lineHeight: 1,
-    },
-    // ── END NEW ──
+  /* ── Shared styles ── */
+  const S = {
+    page:    { minHeight: "100vh", background: "#f1f5f9" },
+    wrap:    { maxWidth: 500, margin: "0 auto", padding: "24px 16px" },
+    card:    { background: "#fff", borderRadius: 16, padding: "22px 20px", marginBottom: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" },
+    title:   { fontSize: 22, fontWeight: 800, color: "#111827", marginBottom: 4 },
+    sub:     { fontSize: 13, color: "#6b7280", marginBottom: 20 },
+    label:   { display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 5 },
+    btn:     (color) => ({ width: "100%", padding: "13px", background: color, color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 8 }),
+    disBtn:  { width: "100%", padding: "13px", background: "#9ca3af", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "not-allowed", marginTop: 8 },
+    infoBox: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 9, padding: "10px 13px", fontSize: 13, color: "#1e40af", marginBottom: 14 },
+    errBox:  { background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 9, padding: "10px 13px", fontSize: 13, color: "#b91c1c", marginBottom: 12 },
+    okBox:   { background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 9, padding: "10px 13px", fontSize: 13, color: "#166534", marginBottom: 14 },
+    backBtn: { background: "none", border: "none", color: "#6b7280", cursor: "pointer", textDecoration: "underline", fontSize: 13, margin: "10px auto 0", display: "block", textAlign: "center" },
+    idCard:  { border: "2px solid #6366f1", width: 300, margin: "0 auto", padding: 20, borderRadius: 16, background: "#fff", boxShadow: "0 4px 16px rgba(99,102,241,0.15)" },
   };
 
   return (
-    <div style={s.page}>
+    <div style={S.page}>
       <Navbar />
-      <div style={s.container}>
-        <h2 style={s.title}>Event Registration</h2>
-        <p style={s.subtitle}>Fill the form and pay ₹{AMOUNT} to register</p>
 
-        {/* Step Indicator */}
-        <div style={{ marginBottom: 20 }}>
-          {["Form", "Pay", "Verify", "Photo", "ID Card"].map((label, i) => (
-            <span key={i}>
-              <span style={s.stepBadge(step === i + 1)}>{i + 1}</span>
-              <span
-                style={{
-                  fontSize: 11,
-                  color: step === i + 1 ? "#4f46e5" : "#9ca3af",
-                }}
-              >
-                {label}
-              </span>
-              {i < 4 && (
-                <span style={{ color: "#d1d5db", margin: "0 4px" }}>›</span>
-              )}
-            </span>
-          ))}
-        </div>
+      {(paymentStatus === "verifying" || paymentStatus === "success") && (
+        <PaymentOverlay status={paymentStatus} />
+      )}
 
-        {/* ══ STEP 1 — FORM ══ */}
+      <div style={S.wrap}>
+        <h2 style={S.title}>Event Registration</h2>
+        <p style={S.sub}>
+          Fill the form and pay ₹100 to register for{" "}
+          <strong style={{ color: "#6366f1" }}>{eventName}</strong>
+        </p>
+
+        <StepIndicator current={step} />
+
+        {/* ══ STEP 1: FORM ══ */}
         {step === 1 && (
           <form onSubmit={handleShowPayment}>
-            <div style={s.card}>
-              <label style={s.label}>Full Name</label>
-              <input
-                style={s.input}
-                name="name"
-                placeholder="Enter your name"
-                onChange={handleChange}
-                required
-              />
-              <label style={s.label}>College Name</label>
-              <input
-                style={s.input}
-                name="college_name"
-                placeholder="Enter college name"
-                onChange={handleChange}
-                required
-              />
-              <label style={s.label}>Phone Number</label>
-              <input
-                style={s.input}
-                name="phone"
-                placeholder="Enter phone number"
-                type="tel"
-                onChange={handleChange}
-                required
-              />
-              <label style={s.label}>Email Address</label>
-              <input
-                style={s.input}
-                name="email"
-                placeholder="Enter email address"
-                type="email"
-                onChange={handleChange}
-                required
-              />
-              <div style={s.successBox}>
-                Selected Event: <strong>{eventName}</strong>
-              </div>
-              <button type="submit" style={s.primaryBtn}>
-                Proceed to Pay ₹{AMOUNT}
-              </button>
+            <div style={S.card}>
+              <FormField label="Full Name" name="name" placeholder="e.g. Arun Sekar"
+                value={formData.name} onChange={handleChange} onBlur={handleBlur}
+                error={fieldErrors.name} aiResult={fieldAI.name} loading={fieldLoading.name} />
+              <FormField label="College Name" name="college_name" placeholder="e.g. Anna University"
+                value={formData.college_name} onChange={handleChange} onBlur={handleBlur}
+                error={fieldErrors.college_name} aiResult={fieldAI.college_name} loading={fieldLoading.college_name} />
+              <FormField label="Phone Number" name="phone" type="tel" placeholder="10-digit mobile number"
+                value={formData.phone} onChange={handleChange} onBlur={handleBlur}
+                error={fieldErrors.phone} aiResult={fieldAI.phone} loading={fieldLoading.phone} />
+              <FormField label="Email Address" name="email" type="email" placeholder="you@example.com"
+                value={formData.email} onChange={handleChange} onBlur={handleBlur}
+                error={fieldErrors.email} aiResult={fieldAI.email} loading={fieldLoading.email} />
+              <div style={S.okBox}>🎫 Selected Event: <strong>{eventName}</strong></div>
+              <button type="submit" style={S.btn("#6366f1")}>Proceed to Pay ₹1 →</button>
             </div>
           </form>
         )}
 
-        {/* ══ STEP 2 — PAYMENT + UTR ══ */}
+        {/* ══ STEP 2: PAYMENT ══ */}
         {step === 2 && (
-          <div>
-            <div style={s.card}>
-              <label style={{ ...s.label, fontSize: 15 }}>
-                Scan QR &amp; Pay ₹{AMOUNT}
-              </label>
-              <p style={s.hint}>Open GPay / PhonePe / Paytm → Scan QR → Pay</p>
-              <div style={s.qrWrapper}>
-                <div
-                  style={{
-                    padding: 12,
-                    backgroundColor: "#fff",
-                    borderRadius: 10,
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  <QRCode value={upiQRValue} size={180} />
+          <div style={S.card}>
+            <div style={S.infoBox}>
+              <strong>How it works:</strong><br />
+              Click the button below → Razorpay secure popup opens →
+              Pay ₹100 via UPI / Card / NetBanking → Done! No UTR entry needed.
+            </div>
+
+            {paymentError && <div style={S.errBox}>⚠️ {paymentError}</div>}
+
+            <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 12, padding: "16px 18px", marginBottom: 18 }}>
+              {[["Name", formData.name], ["College", formData.college_name], ["Event", eventName]].map(([lbl, val]) => (
+                <div key={lbl} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: "#6b7280" }}>{lbl}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: lbl === "Event" ? "#6366f1" : "inherit" }}>{val}</span>
                 </div>
-                <p style={{ marginTop: 12, fontSize: 12, color: "#6b7280" }}>
-                  UPI ID:{" "}
-                  <strong style={{ color: "#111827" }}>{YOUR_UPI_ID}</strong>
-                </p>
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                  Amount:{" "}
-                  <strong style={{ color: "#111827" }}>₹{AMOUNT}</strong>
-                </p>
-              </div>
-              <div style={s.infoBox}>
-                <strong>How to pay:</strong>
-                <br />
-                1. Open GPay / PhonePe / Paytm
-                <br />
-                2. Tap <strong>Scan QR</strong> and scan above
-                <br />
-                3. Confirm payment of ₹{AMOUNT}
-                <br />
-                4. Copy the <strong>UTR / Transaction ID</strong> from the app
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e5e7eb", paddingTop: 10, marginTop: 4 }}>
+                <span style={{ fontSize: 15, fontWeight: 700 }}>Amount</span>
+                <span style={{ fontSize: 20, fontWeight: 800, color: "#16a34a" }}>₹1.00</span>
               </div>
             </div>
 
-            {/* ══════════════════════════════════════════
-                NEW: PAYMENT SCREENSHOT UPLOAD CARD
-            ══════════════════════════════════════════ */}
-            <div style={s.card}>
-              <label style={{ ...s.label, fontSize: 14 }}>
-                Upload Payment Screenshot{" "}
-                <span style={{ color: "#9ca3af", fontWeight: 400 }}>
-                  (optional but speeds up verification)
-                </span>
-              </label>
-              <p style={s.hint}>
-                Take a screenshot of your payment success screen from GPay /
-                PhonePe / Paytm and upload it here.
-              </p>
-
-              {screenshotError && (
-                <div style={s.errorBox}>⚠️ {screenshotError}</div>
-              )}
-
-              {screenshotPreview ? (
-                <div style={s.screenshotPreviewBox}>
-                  <img
-                    src={screenshotPreview}
-                    alt="Payment screenshot preview"
-                    style={s.screenshotImg}
-                  />
-                  <button
-                    onClick={removeScreenshot}
-                    style={s.removeBtn}
-                    title="Remove screenshot"
-                  >
-                    ✕
-                  </button>
-                  <div
-                    style={{
-                      backgroundColor: "#f0fdf4",
-                      borderTop: "1px solid #86efac",
-                      padding: "8px 12px",
-                      fontSize: "12px",
-                      color: "#166534",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    ✅ Screenshot uploaded successfully
-                  </div>
-                </div>
-              ) : (
-                <div
-                  style={s.uploadZone}
-                  onClick={() => screenshotInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const file = e.dataTransfer.files[0];
-                    if (file) {
-                      const fakeEvent = { target: { files: [file] } };
-                      handleScreenshotChange(fakeEvent);
-                    }
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "28px",
-                      marginBottom: "8px",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    📷
-                  </div>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      color: "#6b7280",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    <strong style={{ color: "#4f46e5" }}>
-                      Click to upload
-                    </strong>{" "}
-                    or drag &amp; drop
-                  </p>
-                  <p style={{ fontSize: "11px", color: "#9ca3af" }}>
-                    JPG, PNG, WEBP — max 5 MB
-                  </p>
-                </div>
-              )}
-
-              {/* Hidden file input */}
-              <input
-                ref={screenshotInputRef}
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                onChange={handleScreenshotChange}
-                style={{ display: "none" }}
-              />
-            </div>
-            {/* ══ END NEW: PAYMENT SCREENSHOT UPLOAD CARD ══ */}
-
-            <div style={s.card}>
-              <label style={s.label}>Enter UTR / Transaction ID</label>
-              <p style={s.hint}>
-                GPay → UPI Ref. No. &nbsp;|&nbsp; PhonePe → Transaction ID
-                &nbsp;|&nbsp; Paytm → UTR Number
-              </p>
-
-              <div style={s.warningBox}>
-                ⚠️ <strong>Important:</strong> Enter only the real UTR from your
-                payment app. Our system uses smart analysis to detect fake UTRs
-                automatically. Fake submissions will be{" "}
-                <strong>permanently rejected</strong>.
-              </div>
-
-              {utrError && <div style={s.errorBox}>⚠️ {utrError}</div>}
-
-              <input
-                type="text"
-                placeholder="e.g. HDFC2024XXXXXXXX or AXISFBK2891"
-                value={utrNumber}
-                onChange={(e) => {
-                  setUtrError("");
-                  setUtrNumber(e.target.value.replace(/\s/g, "").slice(0, 22));
-                }}
-                style={{
-                  ...s.input,
-                  border: utrError ? "1px solid #f87171" : "1px solid #d1d5db",
-                  letterSpacing: "1px",
-                  marginBottom: "8px",
-                  fontFamily: "monospace",
-                  fontSize: "15px",
-                }}
-              />
-
-              {/* Live strength bar */}
-              {strength && (
-                <div style={{ marginBottom: 14 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <span style={{ fontSize: 11, color: "#6b7280" }}>
-                      UTR strength
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: strength.color,
-                      }}
-                    >
-                      {strength.label}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      height: 4,
-                      backgroundColor: "#e5e7eb",
-                      borderRadius: 4,
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: 4,
-                        width: strength.width,
-                        backgroundColor: strength.color,
-                        borderRadius: 4,
-                        transition: "width 0.3s",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {submitting || utrNumber.trim().length < 10 ? (
-                <button disabled style={s.disabledBtn}>
-                  {submitting
-                    ? "🔬 Analyzing UTR..."
-                    : "Submit UTR for Verification"}
-                </button>
-              ) : (
-                <button onClick={submitUTR} style={s.greenBtn}>
-                  Submit UTR for Verification
-                </button>
-              )}
-            </div>
-
-            <button
-              onClick={() => {
-                setStep(1);
-                setUtrNumber("");
-                setUtrError("");
-              }}
-              style={s.backBtn}
-            >
-              ← Back to Form
-            </button>
-          </div>
-        )}
-
-        {/* ══ STEP 3 — WAITING FOR ADMIN ══ */}
-        {step === 3 && (
-          <div style={s.card}>
-            <div style={{ textAlign: "center", padding: "20px 0" }}>
-              {polling && (
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    border: "4px solid #e5e7eb",
-                    borderTop: "4px solid #4f46e5",
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
-                    margin: "0 auto 16px",
-                  }}
-                />
-              )}
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
-              <h3 style={{ color: "#4f46e5", marginBottom: 8 }}>
-                UTR Submitted Successfully!
-              </h3>
-              <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 16 }}>
-                Your UTR{" "}
-                <strong style={{ color: "#111827", fontFamily: "monospace" }}>
-                  {utrNumber}
-                </strong>{" "}
-                has been submitted.
-              </p>
-
-              {/* UTR Score badge */}
-              {utrScore !== null && (
-                <div
-                  style={{
-                    display: "inline-block",
-                    padding: "6px 16px",
-                    borderRadius: "20px",
-                    backgroundColor:
-                      utrScore >= 75
-                        ? "#f0fdf4"
-                        : utrScore >= 45
-                          ? "#fefce8"
-                          : "#fef2f2",
-                    border: `1px solid ${utrScore >= 75 ? "#86efac" : utrScore >= 45 ? "#fde047" : "#fca5a5"}`,
-                    color:
-                      utrScore >= 75
-                        ? "#166534"
-                        : utrScore >= 45
-                          ? "#854d0e"
-                          : "#b91c1c",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    marginBottom: 16,
-                  }}
-                >
-                  {utrScore >= 75
-                    ? `✅ UTR Score: ${utrScore}/100 — Looks genuine`
-                    : utrScore >= 45
-                      ? `⚠️ UTR Score: ${utrScore}/100 — Under review`
-                      : `❌ UTR Score: ${utrScore}/100 — Flagged`}
-                </div>
-              )}
-
-              <div style={{ ...s.infoBox, textAlign: "center", fontSize: 13 }}>
-                {pollStatus}
-              </div>
-
-              <div style={{ ...s.warningBox, textAlign: "left" }}>
-                <strong>What happens next?</strong>
-                <br />
-                1. Admin checks your UTR in their bank app
-                <br />
-                2. If payment is genuine → <strong>Approved ✅</strong>
-                <br />
-                3. If UTR is fake → <strong>Rejected ❌</strong>
-                <br />
-                4. This page auto-updates every 5 seconds
-              </div>
-
-              <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
-                Do not close this page. Your ID card will appear here once
-                approved.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* ══ STEP 4 — CAMERA ══ */}
-        {step === 4 && (
-          <div style={s.card}>
-            {autoApproved ? (
-              <div style={s.successBox}>
-                ✅ UTR auto-verified (high confidence score)! Take your photo to
-                generate your ID card.
-              </div>
+            {creatingOrder ? (
+              <button disabled style={S.disBtn}>⏳ Creating secure order...</button>
+            ) : paymentStatus === "processing" ? (
+              <button disabled style={S.disBtn}>💳 Payment in progress...</button>
             ) : (
-              <div style={s.successBox}>
-                ✅ Payment verified by admin! Take your photo to generate your
-                ID card.
-              </div>
+              <button onClick={startRazorpayPayment}
+                style={{ ...S.btn("#6366f1"), display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                <span>💳</span><span>Pay ₹1 Securely via Razorpay</span>
+              </button>
             )}
 
-            <p style={{ ...s.label, fontSize: 15 }}>
-              Your Registration QR Code
-            </p>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                marginBottom: 20,
-              }}
-            >
-              <QRCode value={qrData.toString()} size={180} />
+            <div style={{ textAlign: "center", marginTop: 14 }}>
+              <p style={{ fontSize: 11, color: "#9ca3af", marginBottom: 8 }}>Secured by Razorpay · 256-bit SSL Encryption</p>
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+                {["UPI", "GPay", "PhonePe", "Paytm", "Cards", "NetBanking"].map((m) => (
+                  <span key={m} style={{ fontSize: 11, padding: "3px 10px", background: "#f3f4f6", borderRadius: 6, color: "#374151", border: "1px solid #e5e7eb" }}>{m}</span>
+                ))}
+              </div>
             </div>
+            <button onClick={() => { setStep(1); setPaymentError(""); }} style={S.backBtn}>← Edit Registration Details</button>
+          </div>
+        )}
 
-            <button onClick={openCamera} style={s.primaryBtn}>
-              Open Camera for Photo
-            </button>
-
-            <video
-              ref={videoRef}
-              width="100%"
-              style={{
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                display: "block",
-                marginTop: 12,
-              }}
-            />
-
-            <button onClick={capturePhoto} style={s.cyanBtn}>
-              Capture Photo
-            </button>
+        {/* ══ STEP 3: CAMERA ══ */}
+        {step === 3 && (
+          <div style={S.card}>
+            <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 12, padding: "16px 18px", marginBottom: 18, display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span style={{ fontSize: 28 }}>✅</span>
+              <div>
+                <p style={{ fontWeight: 800, color: "#166534", fontSize: 14, marginBottom: 4 }}>Payment Verified by Razorpay!</p>
+                <p style={{ color: "#15803d", fontSize: 12 }}>Your ₹1 registration fee is confirmed. No manual review needed.</p>
+              </div>
+            </div>
+            <p style={{ ...S.label, fontSize: 15, marginBottom: 8 }}>Your Registration QR</p>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+              <div style={{ padding: 12, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                <QRCode value={qrData.toString()} size={180} />
+              </div>
+            </div>
+            <p style={{ ...S.label, fontSize: 14, marginBottom: 8 }}>📷 Take a photo for your ID card</p>
+            <button onClick={openCamera} style={S.btn("#6366f1")}>Open Camera</button>
+            <video ref={videoRef} width="100%" style={{ borderRadius: 8, border: "1px solid #e5e7eb", marginTop: 12, display: "block" }} />
+            <button onClick={capturePhoto} style={S.btn("#0891b2")}>Capture Photo</button>
             <canvas ref={canvasRef} style={{ display: "none" }} />
+            <button onClick={skipPhoto} style={S.backBtn}>Skip photo → Go to ID Card</button>
           </div>
         )}
 
-        {/* ══ STEP 5 — ID CARD ══ */}
-        {step === 5 && (
-          <div style={{ marginTop: 10 }}>
-            <p style={{ ...s.label, fontSize: 15, textAlign: "center" }}>
-              Your Event ID Card
-            </p>
-            <div ref={idCardRef} style={s.idCard}>
-              <h3 style={{ color: "#4f46e5", marginBottom: 12, fontSize: 16 }}>
-                College Event ID Card
-              </h3>
-              <p style={{ fontSize: 14, marginBottom: 6 }}>
-                <strong>Name:</strong> {formData.name}
-              </p>
-              <p style={{ fontSize: 14, marginBottom: 6 }}>
-                <strong>User ID:</strong> {userId}
-              </p>
-              <p style={{ fontSize: 14, marginBottom: 14 }}>
-                <strong>Event:</strong> {eventName}
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  marginBottom: 14,
-                }}
-              >
-                <QRCode value={qrData.toString()} size={120} />
+        {/* ══ STEP 4: ID CARD ══ */}
+        {step === 4 && (
+          <div>
+            <p style={{ ...S.label, fontSize: 15, textAlign: "center", marginBottom: 14 }}>🪪 Your Event ID Card</p>
+            <div ref={idCardRef} style={S.idCard}>
+              <div style={{ background: "linear-gradient(135deg,#6366f1,#818cf8)", margin: "-20px -20px 16px", padding: "14px 20px", borderRadius: "14px 14px 0 0" }}>
+                <h3 style={{ color: "#fff", margin: 0, fontSize: 15 }}>🎫 {eventName}</h3>
+                <p style={{ color: "rgba(255,255,255,0.8)", margin: "2px 0 0", fontSize: 11 }}>Official ID Card · Powered by Sympo-Tech</p>
               </div>
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <img
-                  src={photo}
-                  alt="User"
-                  width="110"
-                  style={{ borderRadius: 8, border: "2px solid #e5e7eb" }}
-                />
+              <p style={{ fontSize: 14, marginBottom: 6 }}><strong>Name:</strong> {formData.name}</p>
+              <p style={{ fontSize: 14, marginBottom: 6 }}><strong>College:</strong> {formData.college_name}</p>
+              <p style={{ fontSize: 14, marginBottom: 6 }}><strong>Phone:</strong> {formData.phone}</p>
+              <p style={{ fontSize: 14, marginBottom: 6 }}><strong>User ID:</strong> #{userId}</p>
+              <p style={{ fontSize: 14, marginBottom: 14 }}><strong>Event:</strong> {eventName}</p>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+                <QRCode value={qrData.toString()} size={110} />
               </div>
+              {photo ? (
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <img src={photo} alt="User" width="100" style={{ borderRadius: 8, border: "2px solid #e5e7eb" }} />
+                </div>
+              ) : (
+                <div style={{ width: 100, height: 100, background: "#f3f4f6", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", fontSize: 32, border: "2px solid #e5e7eb" }}>
+                  👤
+                </div>
+              )}
+              <p style={{ fontSize: 10, color: "#9ca3af", textAlign: "center", marginTop: 12 }}>✅ Payment verified by Razorpay</p>
             </div>
-            <button
-              onClick={downloadCard}
-              style={{ ...s.greenBtn, marginTop: 16 }}
-            >
-              Download ID Card
-            </button>
+            <button onClick={downloadCard} style={{ ...S.btn("#16a34a"), marginTop: 16 }}>⬇️ Download ID Card</button>
+            <p style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", marginTop: 8 }}>Registration complete! User ID: #{userId}</p>
           </div>
         )}
+
       </div>
     </div>
   );
 }
-
-export default Register;
