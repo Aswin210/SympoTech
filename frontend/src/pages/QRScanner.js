@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Html5Qrcode } from "html5-qrcode";
+import API_BASE_URL from "../api";
 
 function QRScanner() {
   const scannerRef    = useRef(null);
@@ -82,7 +83,7 @@ function QRScanner() {
   ============================= */
   const handleScan = async (qrData) => {
     try {
-      const res = await fetch("http://localhost:5000/mark-attendance", {
+      const res = await fetch(`${API_BASE_URL}/mark-attendance`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ qrData }),

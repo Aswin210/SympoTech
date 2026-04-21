@@ -5,7 +5,9 @@ import { useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import html2canvas from "html2canvas";
 
-const API = "http://localhost:5000";
+import API_BASE_URL from "../api";
+
+const API = API_BASE_URL;
 
 /* ─────────────────────────────────────────────────────
    PAYMENT PROCESSING OVERLAY

@@ -3,6 +3,7 @@ import axios from "axios";
 import { useLocation } from "react-router-dom";
 import QRCode from "react-qr-code";
 import html2canvas from "html2canvas";
+import API_BASE_URL from "../api";
 
 function IDCard() {
   const location = useLocation();
@@ -13,7 +14,7 @@ function IDCard() {
 
   useEffect(() => {
     axios
-      .get(`http://localhost:5000/verify-user/${userId}`)
+      .get(`${API_BASE_URL}/verify-user/${userId}`)
       .then((res) => {
         if (res.data.success) {
           setUser(res.data.user);

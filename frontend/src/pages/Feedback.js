@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Navbar from "../components/Navbar";
+import API_BASE_URL from "../api";
 
 function Feedback() {
   const [userName, setUserName] = useState("");
@@ -13,7 +14,7 @@ function Feedback() {
 
   const loadFeedback = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/feedback");
+      const res = await axios.get(`${API_BASE_URL}/api/feedback`);
       setFeedbackList(res.data);
     } catch (err) {
       console.log("❌ Error loading feedback");
@@ -31,7 +32,7 @@ function Feedback() {
     }
 
     try {
-      const res = await axios.post("http://localhost:5000/api/feedback", {
+      const res = await axios.post(`${API_BASE_URL}/api/feedback`, {
         user_name: userName,
         user_id: Number(userId),
         event_name: eventName,

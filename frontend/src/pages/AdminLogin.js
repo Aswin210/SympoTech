@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import axios from "axios";
+import API_BASE_URL from "../api";
 
 function AdminLogin() {
   const navigate = useNavigate();
@@ -11,16 +13,21 @@ function AdminLogin() {
   const [error, setError] = useState("");
   const [darkMode] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-
     setError("");
 
-    if (username === "admin" && password === "1234") {
-      localStorage.setItem("admin", "true");
-      navigate("/scanner");
-    } else {
-      setError("❌ Invalid Username or Password");
+    try {
+      const res = await axios.post(`${API_BASE_URL}/admin/login`, { username, password });
+      if (res.data.success) {
+        localStorage.setItem("admin", "true");
+        localStorage.setItem("adminToken", res.data.token);
+        navigate("/scanner");
+      } else {
+        setError(res.data.message || "❌ Invalid credentials");
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "❌ Server error. Please try again.");
     }
   };
 
