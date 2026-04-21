@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import IDCard from "./pages/IDCard";
 import TechnicalEvents from "./pages/TechnicalEvents";
 import NonTechnicalEvents from "./pages/NonTechnicalEvents";
+import About from "./pages/About";
 
 function App() {
 
@@ -43,6 +44,8 @@ function App() {
         <Route path="/non-technical" element={<NonTechnicalEvents />} />
 
         <Route path="/id-card" element={<IDCard />} />
+
+        <Route path="/about" element={<About />} />
 
 
       </Routes>
