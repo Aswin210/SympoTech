@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
-function Navbar() {
+/**
+ * Navbar Component
+ * Refactored for Proper Design & Mobile Responsiveness.
+ */
+function Navbar({ theme, toggleTheme }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen((prev) => !prev);
@@ -9,189 +13,75 @@ function Navbar() {
 
   return (
     <>
-      <style>{`
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
+      <nav className="sympo-navbar fade-in">
+        <Link to="/" className="sympo-logo" onClick={closeMenu} style={{ fontSize: "clamp(14px, 2vw, 18px)" }}>
+          SympoTech Event Management System
+        </Link>
 
-        .sympo-navbar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          background: #222;
-          padding: 12px 20px;
-          color: white;
-          position: relative;
-          z-index: 1000;
-          width: 100%;
-        }
+        {/* Desktop Links */}
+        <div className="sympo-links">
+          <Link to="/" className="sympo-link">Home</Link>
+          <Link to="/events" className="sympo-link">Events</Link>
+          <Link to="/feedback" className="sympo-link">Feedback</Link>
+          <Link to="/about" className="sympo-link">About</Link>
+          <Link to="/admin-login" className="sympo-link" style={{ background: "var(--glass-bg)", borderRadius: "10px" }}>Admin</Link>
+          
+          <button 
+            className="theme-toggle" 
+            onClick={toggleTheme} 
+            aria-label="Toggle Theme"
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
+        </div>
 
-        .sympo-logo {
-          font-size: 18px;
-          font-weight: bold;
-          color: white;
-          flex: 1;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          padding-right: 10px;
-        }
-
-        .sympo-hamburger {
-          display: none;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          gap: 5px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 6px;
-          z-index: 1100;
-          min-width: 36px;
-          min-height: 36px;
-        }
-
-        .sympo-hamburger .bar {
-          display: block;
-          width: 24px;
-          height: 3px;
-          background: white;
-          border-radius: 3px;
-          transition: transform 0.3s ease, opacity 0.3s ease;
-          transform-origin: center;
-        }
-
-        .sympo-hamburger.open .bar:nth-child(1) {
-          transform: translateY(8px) rotate(45deg);
-        }
-
-        .sympo-hamburger.open .bar:nth-child(2) {
-          opacity: 0;
-          transform: scaleX(0);
-        }
-
-        .sympo-hamburger.open .bar:nth-child(3) {
-          transform: translateY(-8px) rotate(-45deg);
-        }
-
-        .sympo-links {
-          display: flex;
-          gap: 15px;
-          align-items: center;
-        }
-
-        .sympo-link {
-          text-decoration: none;
-          color: white;
-          font-size: 15px;
-          white-space: nowrap;
-          transition: color 0.2s;
-        }
-
-        .sympo-link:hover {
-          color: #ff7eb3;
-        }
-
-        .sympo-mobile-menu {
-          display: none;
-          flex-direction: column;
-          background: #2a2a2a;
-          width: 100%;
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          z-index: 998;
-          box-shadow: 0 6px 20px rgba(0,0,0,0.5);
-          overflow: hidden;
-        }
-
-        .sympo-mobile-menu.is-open {
-          display: flex;
-        }
-
-        .sympo-mobile-menu a {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 15px 24px;
-          color: white;
-          text-decoration: none;
-          font-size: 16px;
-          border-bottom: 1px solid rgba(255,255,255,0.07);
-          transition: background 0.2s;
-        }
-
-        .sympo-mobile-menu a:last-child {
-          border-bottom: none;
-        }
-
-        .sympo-mobile-menu a:hover,
-        .sympo-mobile-menu a:active {
-          background: rgba(255, 126, 179, 0.15);
-          color: #ff7eb3;
-        }
-
-        @media (max-width: 768px) {
-          .sympo-logo {
-            font-size: 15px;
-          }
-
-          .sympo-hamburger {
-            display: flex;
-          }
-
-          .sympo-links {
-            display: none;
-          }
-        }
-
-        @media (max-width: 380px) {
-          .sympo-logo {
-            font-size: 13px;
-          }
-
-          .sympo-navbar {
-            padding: 10px 14px;
-          }
-        }
-      `}</style>
-
-      <div style={{ position: "relative", zIndex: 1000 }}>
-        <nav className="sympo-navbar">
-          <div className="sympo-logo">Sympotech Event Management System</div>
-
-          <div className="sympo-links">
-            <Link to="/" className="sympo-link">Home</Link>
-            <Link to="/events" className="sympo-link">Events</Link>
-            <Link to="/admin-login" className="sympo-link">Admin Login</Link>
-            <Link to="/feedback" className="sympo-link">FeedBack</Link>
-            <Link to="/about" className="sympo-link">About</Link>
-          </div>
-
+        {/* Mobile Actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto" }} className="mobile-only-flex">
+          <button 
+            className="theme-toggle mobile-theme-btn" 
+            onClick={toggleTheme}
+            aria-label="Toggle Theme"
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
+          
           <button
             className={"sympo-hamburger " + (menuOpen ? "open" : "")}
             onClick={toggleMenu}
-            aria-label="Toggle navigation menu"
-            aria-expanded={menuOpen}
+            aria-label="Toggle Menu"
+            style={{ marginLeft: "4px" }}
           >
-            <span className="bar" />
-            <span className="bar" />
-            <span className="bar" />
+            <span />
+            <span />
+            <span />
           </button>
-        </nav>
+        </div>
+      </nav>
 
-        <div className={"sympo-mobile-menu " + (menuOpen ? "is-open" : "")}>
-          <Link to="/" onClick={closeMenu}>🏠 Home</Link>
-          <Link to="/events" onClick={closeMenu}>🎉 Events</Link>
-          <Link to="/admin-login" onClick={closeMenu}>🔐 Admin Login</Link>
-          <Link to="/feedback" onClick={closeMenu}>💬 FeedBack</Link>
-          <Link to="/about" onClick={closeMenu}>ℹ️ About</Link>
+      {/* Mobile Menu Overlay */}
+      <div className={"sympo-mobile-menu " + (menuOpen ? "is-open" : "")}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", maxWidth: "320px" }}>
+          <Link to="/" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px" }}>🏠 Home</Link>
+          <Link to="/events" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px" }}>🎉 Events</Link>
+          <Link to="/feedback" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px" }}>💬 Feedback</Link>
+          <Link to="/about" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px" }}>ℹ️ About Us</Link>
+          <Link to="/admin-login" onClick={closeMenu} className="primary-button" style={{ marginTop: "20px", padding: "18px" }}>🔐 Admin Portal</Link>
+          
+          <button onClick={closeMenu} className="secondary-button" style={{ marginTop: "40px", border: "none", opacity: 0.6 }}>
+            Close Menu
+          </button>
         </div>
       </div>
+
+      <style>{`
+        @media (min-width: 1025px) {
+          .mobile-only-flex { display: none !important; }
+        }
+        @media (max-width: 1024px) {
+          .sympo-links { display: none !important; }
+          .mobile-only-flex { display: flex !important; }
+        }
+      `}</style>
     </>
   );
 }

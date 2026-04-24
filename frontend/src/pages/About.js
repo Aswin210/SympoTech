@@ -1,124 +1,86 @@
 import React from "react";
-import Navbar from "../components/Navbar";
 
+/**
+ * About Page
+ * Refactored for Bento Design System with Mobile Optimization.
+ */
 function About() {
-  const styles = {
-    page: {
-      minHeight: "100vh",
-      background: "linear-gradient(135deg, #1e3a8a, #3b82f6)",
-      color: "#fff",
-      fontFamily: "'Inter', sans-serif",
-    },
-    container: {
-      maxWidth: "800px",
-      margin: "0 auto",
-      padding: "80px 20px",
-      textAlign: "center",
-    },
-    card: {
-      background: "rgba(255, 255, 255, 0.1)",
-      backdropFilter: "blur(10px)",
-      borderRadius: "20px",
-      padding: "40px",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-      marginTop: "20px",
-    },
-    heading: {
-      fontSize: "36px",
-      fontWeight: "800",
-      marginBottom: "20px",
-      textTransform: "uppercase",
-      letterSpacing: "2px",
-    },
-    subheading: {
-      fontSize: "20px",
-      color: "#e0e7ff",
-      marginBottom: "30px",
-      lineHeight: "1.6",
-    },
-    section: {
-      marginBottom: "30px",
-      textAlign: "left",
-    },
-    sectionTitle: {
-      fontSize: "24px",
-      fontWeight: "700",
-      marginBottom: "15px",
-      borderBottom: "2px solid rgba(255,255,255,0.2)",
-      paddingBottom: "10px",
-    },
-    contactInfo: {
-      display: "flex",
-      flexDirection: "column",
-      gap: "15px",
-    },
-    contactItem: {
-      display: "flex",
-      alignItems: "center",
-      gap: "15px",
-      fontSize: "18px",
-    },
-    icon: {
-      fontSize: "24px",
-    },
-    footer: {
-      marginTop: "40px",
-      fontSize: "14px",
-      color: "rgba(255,255,255,0.6)",
-    }
-  };
-
   return (
-    <div style={styles.page}>
-      <Navbar />
-      <div style={styles.container}>
-        <h1 style={styles.heading}>About SympoTech</h1>
-        <p style={styles.subheading}>
-          SympoTech is a state-of-the-art Event Management System designed to streamline 
-          college symposiums and technical fests. From registration to real-time 
-          attendance tracking, we provide a seamless experience for both organizers and participants.
-        </p>
-
-        <div style={styles.card}>
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>📞 Contact Us</h2>
-            <div style={styles.contactInfo}>
-              <div style={styles.contactItem}>
-                <span style={styles.icon}>📱</span>
-                <span><b>General Inquiries:</b> +91 98765 43210</span>
-              </div>
-              <div style={styles.contactItem}>
-                <span style={styles.icon}>☎️</span>
-                <span><b>Event Support:</b> +91 80123 45678</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>✉️ Email Support</h2>
-            <div style={styles.contactInfo}>
-              <div style={styles.contactItem}>
-                <span style={styles.icon}>📧</span>
-                <span><b>Support:</b> support@sympotech.edu</span>
-              </div>
-              <div style={styles.contactItem}>
-                <span style={styles.icon}>🏢</span>
-                <span><b>Collaborations:</b> events@college.ac.in</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>📍 Location</h2>
-            <p style={{fontSize: "18px"}}>
-              SympoTech Innovation Hub, <br />
-              Department of Information Technology, <br />
-              Anna University Campus, Chennai - 600025
-            </p>
-          </div>
+    <div style={{ minHeight: "100vh", background: "var(--bg-app)", paddingBottom: "80px" }}>
+      <div className="container fade-in" style={{ paddingTop: "20px" }}>
+        
+        <div style={{ textAlign: "center", marginBottom: "60px" }}>
+          <h1 className="gradient-text" style={{ fontSize: "clamp(2.2rem, 8vw, 5rem)" }}>About SympoTech</h1>
+          <p style={{ fontSize: "clamp(0.9rem, 2vw, 1.1rem)", color: "var(--text-secondary)", marginTop: "12px", fontWeight: "700", letterSpacing: "1.5px", textTransform: "uppercase" }}>
+            Pioneering the future of events
+          </p>
         </div>
 
-        <p style={styles.footer}>© 2026 SympoTech Event Management System. All rights reserved.</p>
+        <div className="grid-bento">
+          
+          <div className="glass-card" style={{ gridColumn: "span 12", padding: "clamp(24px, 5vw, 60px)" }}>
+            <h2 className="gradient-text" style={{ fontSize: "clamp(1.8rem, 4vw, 2.5rem)", marginBottom: "20px" }}>Our Mission</h2>
+            <p style={{ fontSize: "clamp(1rem, 2vw, 1.2rem)", lineHeight: "1.8", color: "var(--text-primary)", opacity: 0.9 }}>
+              SympoTech is a state-of-the-art Event Management System designed to streamline 
+              college symposiums and technical fests. From registration to real-time 
+              attendance tracking, we provide a seamless experience for both organizers and participants.
+              We believe in the power of technology to connect minds and foster innovation.
+            </p>
+          </div>
+
+          <div className="glass-card" style={{ gridColumn: "span 6", display: "flex", flexDirection: "column", gap: "24px" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: "800" }}>📞 Get in Touch</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                <div style={{ fontSize: "20px", background: "var(--glass-bg)", width: "50px", height: "50px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "14px", flexShrink: 0 }}>📱</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: "800", textTransform: "uppercase" }}>GENERAL</div>
+                  <div style={{ fontSize: "clamp(14px, 2vw, 17px)", fontWeight: "700", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>+91 98765 43210</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                <div style={{ fontSize: "20px", background: "var(--glass-bg)", width: "50px", height: "50px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "14px", flexShrink: 0 }}>☎️</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: "800", textTransform: "uppercase" }}>SUPPORT</div>
+                  <div style={{ fontSize: "clamp(14px, 2vw, 17px)", fontWeight: "700", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>+91 80123 45678</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card" style={{ gridColumn: "span 6", display: "flex", flexDirection: "column", gap: "24px" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: "800" }}>✉️ Email Support</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                <div style={{ fontSize: "20px", background: "var(--glass-bg)", width: "50px", height: "50px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "14px", flexShrink: 0 }}>📧</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: "800", textTransform: "uppercase" }}>TECHNICAL</div>
+                  <div style={{ fontSize: "clamp(14px, 2vw, 17px)", fontWeight: "700", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>support@sympotech.edu</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                <div style={{ fontSize: "20px", background: "var(--glass-bg)", width: "50px", height: "50px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "14px", flexShrink: 0 }}>🏢</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: "800", textTransform: "uppercase" }}>EVENTS</div>
+                  <div style={{ fontSize: "clamp(14px, 2vw, 17px)", fontWeight: "700", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>events@college.ac.in</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card" style={{ gridColumn: "span 12", background: "var(--bg-surface)", borderStyle: "dashed" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: "800", marginBottom: "12px" }}>📍 Our Headquarters</h3>
+            <p style={{ fontSize: "clamp(0.9rem, 2vw, 1.1rem)", lineHeight: "1.7", color: "var(--text-secondary)" }}>
+              SympoTech Innovation Hub, Department of Information Technology,<br />
+              Anna University Campus, Chennai, Tamil Nadu - 600025
+            </p>
+          </div>
+
+        </div>
+
+        <footer style={{ textAlign: "center", marginTop: "80px", fontSize: "12px", color: "var(--text-muted)", fontWeight: "800", letterSpacing: "1.5px" }}>
+          © 2026 SYMPOTECH • INNOVATING FOR TOMORROW
+        </footer>
       </div>
     </div>
   );

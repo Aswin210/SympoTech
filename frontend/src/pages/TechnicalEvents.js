@@ -1,13 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar";
 
+/**
+ * Technical Events Listing Page
+ */
 function TechnicalEvents() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
 
-  const events = [
+  const events = useMemo(() => [
     { id: 1,  name: "Project Presentation",      time: "9:30 AM - 12:30 PM",  venue: "Room 107" },
     { id: 2,  name: "Reverse Engineering",        time: "9:30 AM - 12:30 PM",  venue: "Room 114" },
     { id: 17, name: "Code Debugging",             time: "1:00 PM - 4:30 PM",   venue: "Room 224" },
@@ -22,181 +24,80 @@ function TechnicalEvents() {
     { id: 11, name: "Cloud Computing Workshop",   time: "9:30 AM - 12:30 PM",  venue: "Room 305" },
     { id: 12, name: "Robotics Demo",              time: "2:00 PM - 4:00 PM",   venue: "Lab 6" },
     { id: 13, name: "Data Science Challenge",     time: "10:30 AM - 1:30 PM",  venue: "Room 220" },
-  ];
+  ], []);
 
-  const handleRegister = (event) => {
-    navigate("/register", {
-      state: { eventId: event.id, eventName: event.name },
-    });
-  };
-
-  const filteredEvents = events.filter((event) => {
+  const filteredEvents = useMemo(() => events.filter((event) => {
     const matchesSearch = event.name.toLowerCase().includes(search.toLowerCase());
     const isMorning = event.time.includes("AM");
     const isAfternoon = event.time.includes("PM");
     if (filter === "Morning") return matchesSearch && isMorning;
     if (filter === "Afternoon") return matchesSearch && isAfternoon;
     return matchesSearch;
-  });
+  }), [search, filter, events]);
 
   return (
-    <div style={styles.page}>
-      <Navbar />
+    <div style={{ minHeight: "100vh", background: "var(--bg-app)", paddingBottom: "80px" }}>
+      <div className="container" style={{ paddingTop: "40px" }}>
+        <div style={{ textAlign: "center", marginBottom: "60px" }}>
+          <h1 className="gradient-text fade-in" style={{ fontSize: "clamp(2.5rem, 8vw, 4rem)" }}>Technical Events</h1>
+          <p style={{ color: "var(--text-secondary)", marginTop: "12px", fontSize: "18px", fontWeight: "600" }}>Empowering the innovators of tomorrow</p>
+        </div>
 
-      <h2 style={styles.heading}>🚀 Technical Events</h2>
-      <p style={styles.subheading}>{filteredEvents.length} events available</p>
+        <div className="fade-in" style={{ display: "flex", gap: "20px", marginBottom: "48px", flexWrap: "wrap" }}>
+          <input
+            className="premium-input"
+            style={{ flex: "1", minWidth: "260px" }}
+            placeholder="Search for an event..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select
+            className="premium-input"
+            style={{ width: "200px", cursor: "pointer" }}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option style={{ background: "var(--bg-surface)" }}>All</option>
+            <option style={{ background: "var(--bg-surface)" }}>Morning</option>
+            <option style={{ background: "var(--bg-surface)" }}>Afternoon</option>
+          </select>
+        </div>
 
-      {/* Search + Filter */}
-      <div style={styles.filterRow}>
-        <input
-          type="text"
-          placeholder="🔍 Search events..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={styles.searchInput}
-        />
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          style={styles.select}
-        >
-          <option>All</option>
-          <option>Morning</option>
-          <option>Afternoon</option>
-        </select>
-      </div>
-
-      {/* Event Cards Grid */}
-      <div style={styles.grid}>
-        {filteredEvents.length === 0 ? (
-          <div style={styles.emptyState}>
-            <p style={{ fontSize: "40px", marginBottom: "12px" }}>🔍</p>
-            <p style={{ color: "#6b7280", fontSize: "16px" }}>No events match your search.</p>
-          </div>
-        ) : (
-          filteredEvents.map((event) => (
-            <div key={event.id} style={styles.card}>
-              <h3 style={styles.cardTitle}>{event.name}</h3>
-              <p style={styles.cardDetail}><b>⏰</b> {event.time}</p>
-              <p style={styles.cardDetail}><b>📍</b> {event.venue}</p>
-              <button
-                onClick={() => handleRegister(event)}
-                style={styles.registerBtn}
+        <div className="grid-bento fade-in">
+          {filteredEvents.map((event) => (
+            <div key={event.id} className="glass-card" style={{ gridColumn: "span 4", display: "flex", flexDirection: "column", gap: "24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
+                <h3 style={{ fontSize: "20px", fontWeight: "800" }}>{event.name}</h3>
+                <span style={{ fontSize: "11px", background: "var(--primary)", color: "#fff", padding: "4px 10px", borderRadius: "8px", fontWeight: "800" }}>#{event.id}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", color: "var(--text-secondary)", fontSize: "14px", fontWeight: "500" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "18px" }}>📅</span> {event.time}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "18px" }}>🏢</span> {event.venue}
+                </div>
+              </div>
+              <button 
+                className="primary-button" 
+                style={{ width: "100%", marginTop: "auto", borderRadius: "12px" }}
+                onClick={() => navigate("/register", { state: { eventId: event.id, eventName: event.name } })}
               >
                 Register Now
               </button>
             </div>
-          ))
+          ))}
+        </div>
+
+        {filteredEvents.length === 0 && (
+          <div style={{ textAlign: "center", padding: "100px 20px" }}>
+            <div style={{ fontSize: "80px", marginBottom: "20px", opacity: 0.2 }}>🔭</div>
+            <h3 style={{ fontSize: "24px", color: "var(--text-secondary)" }}>No events matched your search</h3>
+          </div>
         )}
       </div>
-
-      {/* Responsive grid CSS */}
-      <style>{`
-        @media (max-width: 480px) {
-          .tech-grid { grid-template-columns: 1fr !important; }
-          .tech-filter-row { flex-direction: column !important; }
-          .tech-search { width: 100% !important; }
-          .tech-select { width: 100% !important; }
-        }
-      `}</style>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    background: "#f5f7fa",
-    minHeight: "100vh",
-    paddingBottom: "32px",
-  },
-  heading: {
-    textAlign: "center",
-    marginTop: "24px",
-    marginBottom: "4px",
-    fontSize: "clamp(20px, 5vw, 28px)",
-    color: "#111827",
-    fontWeight: "800",
-  },
-  subheading: {
-    textAlign: "center",
-    color: "#6b7280",
-    fontSize: "14px",
-    marginBottom: "20px",
-  },
-  filterRow: {
-    display: "flex",
-    justifyContent: "center",
-    gap: "10px",
-    margin: "0 16px 24px 16px",
-    flexWrap: "wrap",
-  },
-  searchInput: {
-    padding: "12px 14px",
-    flex: "1",
-    minWidth: "200px",
-    maxWidth: "300px",
-    borderRadius: "10px",
-    border: "1px solid #d1d5db",
-    fontSize: "14px",
-    outline: "none",
-    boxSizing: "border-box",
-  },
-  select: {
-    padding: "12px 14px",
-    borderRadius: "10px",
-    border: "1px solid #d1d5db",
-    fontSize: "14px",
-    outline: "none",
-    backgroundColor: "#fff",
-    minWidth: "130px",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-    gap: "16px",
-    padding: "0 16px",
-    maxWidth: "1100px",
-    margin: "0 auto",
-  },
-  card: {
-    background: "#fff",
-    borderRadius: "14px",
-    padding: "20px",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-    border: "1px solid #f3f4f6",
-    transition: "transform 0.2s, box-shadow 0.2s",
-  },
-  cardTitle: {
-    color: "#111827",
-    fontSize: "16px",
-    fontWeight: "700",
-    marginBottom: "4px",
-  },
-  cardDetail: {
-    color: "#4b5563",
-    fontSize: "14px",
-    margin: "0",
-  },
-  registerBtn: {
-    marginTop: "12px",
-    padding: "12px",
-    width: "100%",
-    border: "none",
-    borderRadius: "8px",
-    background: "linear-gradient(135deg, #667eea, #764ba2)",
-    color: "#fff",
-    fontSize: "14px",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  emptyState: {
-    gridColumn: "1 / -1",
-    textAlign: "center",
-    padding: "60px 20px",
-  },
-};
 
 export default TechnicalEvents;

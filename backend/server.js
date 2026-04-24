@@ -299,15 +299,16 @@ app.post("/admin/update-status", async (req, res) => {
   res.json({ success: true, message: `Status updated → ${status}` });
 });
 
-/* ── MARK ATTENDANCE ── */
+/* ── MARK ATTENDANCE (3-STAGE) ── */
 app.post("/mark-attendance", async (req, res) => {
-  const { qrData } = req.body;
+  const { qrData, mode } = req.body; // mode: attendance, refreshment, food
   if (!qrData) return res.json({ success: false, message: "QR data missing." });
 
   const [userId, eventId] = qrData.split("-");
   if (!userId || !eventId)
     return res.json({ success: false, message: "Invalid QR format." });
 
+  // 1. Verify User exists and is approved
   const { data: user, error: userErr } = await supabase
     .from("users")
     .select("*")
@@ -319,30 +320,69 @@ app.post("/mark-attendance", async (req, res) => {
   if (user.payment_status !== "approved")
     return res.json({ success: false, message: "❌ Payment not approved." });
 
-  const { data: existing } = await supabase
-    .from("attendance")
-    .select("id")
-    .eq("user_id", userId)
-    .single();
+  // 2. Get current records from all tables
+  const { data: attRec } = await supabase.from("attendance").select("*").eq("user_id", userId).single();
+  const { data: refRec } = await supabase.from("refreshment").select("*").eq("user_id", userId).single();
+  const { data: foodRec } = await supabase.from("food").select("*").eq("user_id", userId).single();
 
-  if (existing)
-    return res.json({
-      success: false,
-      message: "⚠️ Attendance already marked.",
-      user: { name: user.name, college_name: user.college_name, phone: user.phone },
+  const finalStatus = {
+    id: user.id,
+    name: user.name,
+    college_name: user.college_name,
+    is_attended: !!attRec,
+    is_refreshment: !!refRec,
+    is_food: !!foodRec
+  };
+
+  // 3. Smart Automatic Progression (Cross-Table)
+  let message = "";
+
+  if (!attRec) {
+    // Stage 1: Attendance
+    const { error: insErr } = await supabase
+      .from("attendance")
+      .insert({ user_id: user.id, name: user.name, event_id: eventId, phone: user.phone });
+    
+    if (insErr) return res.json({ success: false, message: "❌ Error: Could not mark Attendance." });
+    message = "✅ Attendance marked!";
+    finalStatus.is_attended = true;
+  } 
+  
+  else if (!refRec) {
+    // Stage 2: Refreshment
+    const { error: insErr } = await supabase
+      .from("refreshment")
+      .insert({ user_id: user.id, name: user.name, event_id: eventId, phone: user.phone });
+    
+    if (insErr) return res.json({ success: false, message: "❌ Error: Could not mark Refreshment. (Create 'refreshment' table!)" });
+    message = "✅ Refreshment marked!";
+    finalStatus.is_refreshment = true;
+  }
+
+  else if (!foodRec) {
+    // Stage 3: Food
+    const { error: insErr } = await supabase
+      .from("food")
+      .insert({ user_id: user.id, name: user.name, event_id: eventId, phone: user.phone });
+    
+    if (insErr) return res.json({ success: false, message: "❌ Error: Could not mark Food. (Create 'food' table!)" });
+    message = "✅ Food marked!";
+    finalStatus.is_food = true;
+  }
+
+  else {
+    // Already complete
+    return res.json({ 
+      success: false, 
+      message: "⚠️ All stages (Attendance, Refreshment & Food) already completed.", 
+      user: finalStatus 
     });
-
-  const { error: attErr } = await supabase
-    .from("attendance")
-    .insert({ user_id: user.id, name: user.name, event_id: eventId, phone: user.phone });
-
-  if (attErr)
-    return res.json({ success: false, message: "Failed to mark attendance." });
+  }
 
   res.json({
     success: true,
-    message: "✅ Attendance marked!",
-    user: { name: user.name, college_name: user.college_name, phone: user.phone },
+    message,
+    user: finalStatus,
   });
 });
 

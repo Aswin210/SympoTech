@@ -1,9 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar";
 import axios from "axios";
 import API_BASE_URL from "../api";
 
+/**
+ * Admin Login Page
+ * Refactored for Bento Design System with Mobile Optimization.
+ */
 function AdminLogin() {
   const navigate = useNavigate();
 
@@ -11,11 +14,12 @@ function AdminLogin() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [darkMode] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
     try {
       const res = await axios.post(`${API_BASE_URL}/admin/login`, { username, password });
@@ -24,168 +28,85 @@ function AdminLogin() {
         localStorage.setItem("adminToken", res.data.token);
         navigate("/scanner");
       } else {
-        setError(res.data.message || "❌ Invalid credentials");
+        setError(res.data.message || "Invalid credentials");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "❌ Server error. Please try again.");
+      setError(err.response?.data?.message || "Server connection failed.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={darkMode ? styles.darkPage : styles.page}>
-      <Navbar />
-
-      <div style={styles.container}>
-        <form
-          onSubmit={handleLogin}
-          style={darkMode ? styles.darkCard : styles.card}
-        >
-          <h2 style={styles.heading}>🔐 Admin Login</h2>
-
-          {error && <div style={styles.error}>{error}</div>}
-
-          <input
-            type="text"
-            placeholder="Admin Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            style={styles.input}
-            required
-          />
-
-          <div style={{ position: "relative" }}>
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={styles.input}
-              required
-            />
-
-            <span
-              onClick={() => setShowPassword(!showPassword)}
-              style={styles.eye}
-            >
-              {showPassword ? "🙈" : "👁"}
-            </span>
+    <div style={{ minHeight: "calc(100vh - 100px)", background: "var(--bg-app)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div className="fade-in" style={{ width: "100%", maxWidth: "400px" }}>
+        <div className="glass-card" style={{ padding: "clamp(24px, 8vw, 48px)" }}>
+          <div style={{ textAlign: "center", marginBottom: "32px" }}>
+            <div style={{ fontSize: "50px", marginBottom: "16px" }}>🔐</div>
+            <h1 className="gradient-text" style={{ fontSize: "clamp(1.8rem, 5vw, 2.5rem)" }}>Admin Access</h1>
+            <p style={{ color: "var(--text-secondary)", fontSize: "14px", marginTop: "8px", fontWeight: "600" }}>SympoTech Control Center</p>
           </div>
 
-          <button type="submit" style={styles.button}>
-            Login
-          </button>
-        </form>
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            {error && (
+              <div className="camera-overlay error" style={{ width: "100%", justifyContent: "center", borderRadius: "12px", padding: "12px", fontSize: "12px" }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <label style={{ fontSize: "11px", fontWeight: "800", color: "var(--text-muted)", marginLeft: "4px", letterSpacing: "1px" }}>IDENTITY</label>
+              <input
+                className="premium-input"
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <label style={{ fontSize: "11px", fontWeight: "800", color: "var(--text-muted)", marginLeft: "4px", letterSpacing: "1px" }}>SECURITY KEY</label>
+              <div style={{ position: "relative" }}>
+                <input
+                  className="premium-input"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  style={{ paddingRight: "50px" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "var(--glass-bg)", border: "none", color: "var(--text-primary)", cursor: "pointer", fontSize: "16px", width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              className={loading ? "secondary-button" : "primary-button"} 
+              disabled={loading}
+              style={{ width: "100%", marginTop: "10px", padding: "18px", fontSize: "16px" }}
+            >
+              {loading ? "Verifying..." : "Authorize Portal"}
+            </button>
+          </form>
+          
+          <div style={{ textAlign: "center", marginTop: "32px", borderTop: "1px solid var(--border)", paddingTop: "20px" }}>
+            <p style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: "800", letterSpacing: "2px", textTransform: "uppercase" }}>
+              Encrypted Access Point
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-
-/* 🎨 STYLES */
-const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, #667eea, #764ba2)",
-  },
-
-  darkPage: {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, #141e30, #243b55)",
-  },
-
-  container: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: "90vh",
-    padding: "16px",
-    boxSizing: "border-box",
-  },
-
-  card: {
-    background: "rgba(255,255,255,0.15)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-    padding: "clamp(24px, 6vw, 40px)",
-    borderRadius: "15px",
-    width: "min(320px, 100%)",
-    display: "flex",
-    flexDirection: "column",
-    gap: "15px",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-    boxSizing: "border-box",
-  },
-
-  darkCard: {
-    background: "rgba(0,0,0,0.4)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-    padding: "clamp(24px, 6vw, 40px)",
-    borderRadius: "15px",
-    width: "min(320px, 100%)",
-    display: "flex",
-    flexDirection: "column",
-    gap: "15px",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-    color: "#fff",
-    boxSizing: "border-box",
-  },
-
-  heading: {
-    textAlign: "center",
-    color: "#fff",
-    fontSize: "clamp(18px, 5vw, 22px)",
-    margin: 0,
-  },
-
-  input: {
-    padding: "12px",
-    borderRadius: "8px",
-    border: "none",
-    outline: "none",
-    fontSize: "16px", // 16px prevents iOS auto-zoom on focus
-    width: "100%",
-    boxSizing: "border-box",
-    WebkitAppearance: "none",
-  },
-
-  button: {
-    padding: "14px",
-    border: "none",
-    borderRadius: "8px",
-    background: "linear-gradient(135deg, #ff7eb3, #ff758c)",
-    color: "#fff",
-    fontWeight: "bold",
-    cursor: "pointer",
-    fontSize: "16px",
-    touchAction: "manipulation",
-    WebkitTapHighlightColor: "transparent",
-  },
-
-  eye: {
-    position: "absolute",
-    right: "10px",
-    top: "12px",
-    cursor: "pointer",
-    fontSize: "16px",
-    userSelect: "none",
-    WebkitUserSelect: "none",
-  },
-
-  error: {
-    background: "#ff4d4d",
-    color: "#fff",
-    padding: "8px",
-    borderRadius: "6px",
-    textAlign: "center",
-    fontSize: "14px",
-  },
-
-  toggleBtn: {
-    padding: "8px 12px",
-    borderRadius: "8px",
-    border: "none",
-    cursor: "pointer",
-  },
-};
 
 export default AdminLogin;

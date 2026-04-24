@@ -1,111 +1,48 @@
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar";
 
+/**
+ * Events Category Selection Page
+ * Allows users to choose between Technical and Non-Technical events.
+ */
 function Events() {
   const navigate = useNavigate();
 
-  const [hoverTech, setHoverTech] = useState(false);
-  const [hoverNonTech, setHoverNonTech] = useState(false);
-
-  const pageStyle = {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, #667eea, #764ba2)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-  };
-
-  const navWrapper = {
-    width: "100%",
-  };
-
-  const cardStyle = {
-    marginTop: "80px",
-    marginBottom: "24px",
-    padding: "clamp(20px, 5vw, 40px)",
-    borderRadius: "20px",
-    background: "rgba(255, 255, 255, 0.1)",
-    backdropFilter: "blur(15px)",
-    WebkitBackdropFilter: "blur(15px)",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-    textAlign: "center",
-    color: "#fff",
-    width: "min(350px, calc(100vw - 32px))",
-    boxSizing: "border-box",
-  };
-
-  const headingStyle = {
-    fontSize: "clamp(20px, 5vw, 28px)",
-    marginBottom: "30px",
-    fontWeight: "bold",
-  };
-
-  const buttonBase = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "10px",
-    width: "100%",
-    padding: "clamp(12px, 3vw, 15px)",
-    margin: "15px 0",
-    fontSize: "clamp(15px, 4vw, 18px)",
-    border: "none",
-    borderRadius: "12px",
-    cursor: "pointer",
-    transition: "all 0.3s ease",
-    boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
-    boxSizing: "border-box",
-    touchAction: "manipulation",
-    WebkitTapHighlightColor: "transparent",
-  };
-
   return (
-    <div style={pageStyle}>
-      <div style={navWrapper}>
-        <Navbar />
-      </div>
+    <div style={{ minHeight: "100vh", background: "var(--bg-app)", paddingBottom: "80px" }}>
+      <div className="container fade-in" style={{ display: "flex", justifyContent: "center", paddingTop: "60px" }}>
+        <div className="glass-card" style={{ width: "100%", maxWidth: "500px", textAlign: "center", padding: "48px" }}>
+          <h1 className="gradient-text" style={{ marginBottom: "16px", fontSize: "36px" }}>Event Arena</h1>
+          <p style={{ color: "var(--text-secondary)", marginBottom: "40px", fontSize: "16px" }}>
+            Choose your domain and showcase your brilliance.
+          </p>
 
-      <div style={cardStyle}>
-        <h2 style={headingStyle}>✨ Select Event Category</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <button 
+              className="primary-button" 
+              style={{ width: "100%", padding: "24px", justifyContent: "flex-start", gap: "24px", borderRadius: "var(--radius-md)" }}
+              onClick={() => navigate("/technical")}
+            >
+              <div style={{ fontSize: "32px", background: "rgba(255,255,255,0.2)", width: "60px", height: "60px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>💻</div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontWeight: "800", fontSize: "20px" }}>Technical</div>
+                <div style={{ fontSize: "13px", opacity: 0.9, fontWeight: "500" }}>Coding, AI, Cyber Security</div>
+              </div>
+            </button>
 
-        {/* 💻 Technical */}
-        <button
-          style={{
-            ...buttonBase,
-            background: hoverTech
-              ? "linear-gradient(135deg, #ff7eb3, #ff758c)"
-              : "#ffffff",
-            color: hoverTech ? "#fff" : "#333",
-            transform: hoverTech ? "scale(1.05)" : "scale(1)",
-          }}
-          onMouseEnter={() => setHoverTech(true)}
-          onMouseLeave={() => setHoverTech(false)}
-          onTouchStart={() => setHoverTech(true)}
-          onTouchEnd={() => setHoverTech(false)}
-          onClick={() => navigate("/technical")}
-        >
-          💻 Technical Events
-        </button>
-
-        {/* 🎭 Non-Technical */}
-        <button
-          style={{
-            ...buttonBase,
-            background: hoverNonTech
-              ? "linear-gradient(135deg, #42e695, #3bb2b8)"
-              : "#ffffff",
-            color: hoverNonTech ? "#fff" : "#333",
-            transform: hoverNonTech ? "scale(1.05)" : "scale(1)",
-          }}
-          onMouseEnter={() => setHoverNonTech(true)}
-          onMouseLeave={() => setHoverNonTech(false)}
-          onTouchStart={() => setHoverNonTech(true)}
-          onTouchEnd={() => setHoverNonTech(false)}
-          onClick={() => navigate("/non-technical")}
-        >
-          🎭 Non-Technical Events
-        </button>
+            <button 
+              className="secondary-button" 
+              style={{ width: "100%", padding: "24px", justifyContent: "flex-start", gap: "24px", borderRadius: "var(--radius-md)", background: "var(--bg-surface)" }}
+              onClick={() => navigate("/non-technical")}
+            >
+              <div style={{ fontSize: "32px", background: "var(--glass-bg)", width: "60px", height: "60px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>🎭</div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontWeight: "800", fontSize: "20px" }}>Non-Technical</div>
+                <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: "500" }}>Art, Quiz, Fun Events</div>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
