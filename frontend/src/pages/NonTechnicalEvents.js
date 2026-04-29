@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import EventWinners from "../components/EventWinners";
 
 /**
  * Non-Technical Events Listing Page
@@ -86,6 +87,7 @@ function NonTechnicalEvents() {
                   <span style={{ fontSize: "18px" }}>📍</span> {event.venue}
                 </div>
               </div>
+              <EventWinners eventId={event.id} />
               <button 
                 className="primary-button" 
                 style={{ width: "100%", marginTop: "auto", borderRadius: "12px", background: "var(--secondary)", boxShadow: "0 4px 12px rgba(14, 165, 233, 0.3)" }}

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import EventWinners from "../components/EventWinners";
 
 /**
  * Technical Events Listing Page
@@ -78,6 +79,7 @@ function TechnicalEvents() {
                   <span style={{ fontSize: "18px" }}>🏢</span> {event.venue}
                 </div>
               </div>
+              <EventWinners eventId={event.id} />
               <button 
                 className="primary-button" 
                 style={{ width: "100%", marginTop: "auto", borderRadius: "12px" }}

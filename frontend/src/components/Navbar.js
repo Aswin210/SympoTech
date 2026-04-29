@@ -22,6 +22,7 @@ function Navbar({ theme, toggleTheme }) {
         <div className="sympo-links">
           <Link to="/" className="sympo-link">Home</Link>
           <Link to="/events" className="sympo-link">Events</Link>
+          <Link to="/winners" className="sympo-link" style={{ color: "#FFD700", fontWeight: "800" }}>Winners 🏆</Link>
           <Link to="/feedback" className="sympo-link">Feedback</Link>
           <Link to="/about" className="sympo-link">About</Link>
           <Link to="/admin-login" className="sympo-link" style={{ background: "var(--glass-bg)", borderRadius: "10px" }}>Admin</Link>
@@ -63,6 +64,7 @@ function Navbar({ theme, toggleTheme }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", maxWidth: "320px" }}>
           <Link to="/" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px" }}>🏠 Home</Link>
           <Link to="/events" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px" }}>🎉 Events</Link>
+          <Link to="/winners" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px", color: "#FFD700", borderColor: "rgba(255, 215, 0, 0.3)" }}>🏆 Winners</Link>
           <Link to="/feedback" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px" }}>💬 Feedback</Link>
           <Link to="/about" onClick={closeMenu} className="secondary-button" style={{ justifyContent: "center", padding: "18px", fontSize: "16px" }}>ℹ️ About Us</Link>
           <Link to="/admin-login" onClick={closeMenu} className="primary-button" style={{ marginTop: "20px", padding: "18px" }}>🔐 Admin Portal</Link>
