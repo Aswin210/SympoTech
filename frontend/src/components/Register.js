@@ -11,7 +11,7 @@ const API = API_BASE_URL;
 
 /**
  * Register Component
- * Refactored for Bento Design System.
+ * Refactored for Bento Design System with Mobile Responsiveness.
  */
 export default function Register() {
   const location = useLocation();
@@ -197,54 +197,54 @@ export default function Register() {
   const downloadCard = () => {
     html2canvas(idCardRef.current).then((canvas) => {
       const link = document.createElement("a");
-      link.download = "Event_Pass.png";
+      link.download = `SympoTech_Pass_${formData.name.replace(/\s+/g, '_')}.png`;
       link.href = canvas.toDataURL();
       link.click();
     });
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-app)", paddingBottom: "80px" }}>
-      <div className="container fade-in" style={{ maxWidth: "600px", paddingTop: "40px" }}>
-        <div className="glass-card" style={{ padding: "40px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px" }}>
-            <h2 className="gradient-text" style={{ fontSize: "28px" }}>Registration</h2>
-            <div style={{ background: "var(--primary)", color: "#fff", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "700" }}>STEP {step}/4</div>
+    <div className="register-page">
+      <div className="container register-container fade-in">
+        <div className="glass-card register-card">
+          <div className="register-header">
+            <h2 className="gradient-text">Registration</h2>
+            <div className="step-badge">STEP {step}/4</div>
           </div>
 
-          <p style={{ color: "var(--text-secondary)", marginBottom: "32px" }}>
-            Event: <strong style={{ color: "var(--text-primary)" }}>{eventName}</strong>
+          <p className="event-info">
+            Event: <strong>{eventName}</strong>
           </p>
 
           {/* Step 1: Form */}
           {step === 1 && (
-            <form onSubmit={handleShowPayment} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "var(--text-muted)", marginLeft: "4px" }}>FULL NAME</label>
+            <form onSubmit={handleShowPayment} className="register-form">
+              <div className="form-group">
+                <label>FULL NAME</label>
                 <input className="premium-input" name="name" placeholder="John Doe" value={formData.name} onChange={handleChange} onBlur={handleBlur} />
-                {fieldErrors.name && <small style={{ color: "var(--danger)" }}>{fieldErrors.name}</small>}
+                {fieldErrors.name && <small className="error-text">{fieldErrors.name}</small>}
               </div>
               
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "var(--text-muted)", marginLeft: "4px" }}>COLLEGE NAME</label>
+              <div className="form-group">
+                <label>COLLEGE NAME</label>
                 <input className="premium-input" name="college_name" placeholder="Anna University" value={formData.college_name} onChange={handleChange} onBlur={handleBlur} />
-                {fieldErrors.college_name && <small style={{ color: "var(--danger)" }}>{fieldErrors.college_name}</small>}
+                {fieldErrors.college_name && <small className="error-text">{fieldErrors.college_name}</small>}
               </div>
               
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: "800", color: "var(--text-muted)", marginLeft: "4px" }}>PHONE</label>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>PHONE</label>
                   <input className="premium-input" name="phone" placeholder="9876543210" value={formData.phone} onChange={handleChange} onBlur={handleBlur} />
-                  {fieldErrors.phone && <small style={{ color: "var(--danger)", fontSize: "11px" }}>{fieldErrors.phone}</small>}
+                  {fieldErrors.phone && <small className="error-text">{fieldErrors.phone}</small>}
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: "800", color: "var(--text-muted)", marginLeft: "4px" }}>EMAIL</label>
+                <div className="form-group">
+                  <label>EMAIL</label>
                   <input className="premium-input" name="email" placeholder="john@example.com" value={formData.email} onChange={handleChange} onBlur={handleBlur} />
-                  {fieldErrors.email && <small style={{ color: "var(--danger)", fontSize: "11px" }}>{fieldErrors.email}</small>}
+                  {fieldErrors.email && <small className="error-text">{fieldErrors.email}</small>}
                 </div>
               </div>
 
-              <button type="submit" className="primary-button" style={{ marginTop: "12px" }}>
+              <button type="submit" className="primary-button continue-btn">
                 Continue to Payment
               </button>
             </form>
@@ -252,17 +252,17 @@ export default function Register() {
 
           {/* Step 2: Payment */}
           {step === 2 && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", padding: "40px 24px", borderRadius: "var(--radius-lg)", marginBottom: "32px" }}>
-                <div style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "8px", fontWeight: "600" }}>TOTAL PAYABLE</div>
-                <h1 style={{ fontSize: "56px", marginBottom: "4px" }}>₹1</h1>
-                <div style={{ color: "var(--success)", fontSize: "13px", fontWeight: "700" }}>SECURE TRANSACTION</div>
+            <div className="payment-step">
+              <div className="payment-display">
+                <div className="payment-label">TOTAL PAYABLE</div>
+                <h1 className="payment-amount">₹1</h1>
+                <div className="payment-badge">SECURE TRANSACTION</div>
               </div>
-              {paymentError && <div style={{ color: "var(--danger)", marginBottom: "16px" }}>{paymentError}</div>}
-              <button onClick={startRazorpayPayment} disabled={creatingOrder || paymentStatus !== "idle"} className="primary-button" style={{ width: "100%" }}>
+              {paymentError && <div className="payment-error">{paymentError}</div>}
+              <button onClick={startRazorpayPayment} disabled={creatingOrder || paymentStatus !== "idle"} className="primary-button mobile-w-full">
                 {creatingOrder ? "Initializing..." : "Pay with Razorpay"}
               </button>
-              <button onClick={() => setStep(1)} className="secondary-button" style={{ marginTop: "16px", width: "100%" }}>
+              <button onClick={() => setStep(1)} className="secondary-button mobile-w-full" style={{ marginTop: "16px" }}>
                 Edit Details
               </button>
             </div>
@@ -270,65 +270,63 @@ export default function Register() {
 
           {/* Step 3: Camera */}
           {step === 3 && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{ position: "relative", marginBottom: "24px" }}>
-                <div style={{ display: "flex", justifyContent: "center", marginBottom: "32px" }}>
-                  <div style={{ padding: "16px", background: "#fff", borderRadius: "20px", boxShadow: "var(--shadow-md)" }}>
-                    <QRCode value={qrData.toString()} size={140} />
-                  </div>
+            <div className="camera-step">
+              <div className="qr-preview">
+                <div className="qr-box">
+                  <QRCode value={qrData.toString()} size={140} />
                 </div>
-                
-                <h3 style={{ marginBottom: "8px" }}>Identity Verification</h3>
-                <p style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "32px" }}>Please capture a clear photo of yourself for the digital pass.</p>
-                
-                {!cameraActive ? (
-                  <button onClick={openCamera} className="primary-button" style={{ width: "100%" }}>
-                    {modelsLoaded ? "Launch Camera" : "Loading AI Models..."}
-                  </button>
-                ) : (
-                  <>
-                    <div style={{ position: "relative", marginBottom: "24px", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "2px solid var(--border)" }}>
-                      <video ref={videoRef} playsInline style={{ width: "100%", display: "block", background: "#000" }} />
-                      <div style={{ position: "absolute", bottom: "20px", left: "50%", transform: "translateX(-50%)" }}>
-                        {faceCount === 0 && <span className="camera-overlay warning">NO FACE DETECTED</span>}
-                        {faceCount > 1 && <span className="camera-overlay warning">MULTIPLE FACES</span>}
-                        {faceCount === 1 && <span className="camera-overlay success">READY TO CAPTURE</span>}
-                      </div>
-                    </div>
-                    <button onClick={capturePhoto} disabled={faceCount !== 1} className={faceCount === 1 ? "primary-button" : "secondary-button"} style={{ width: "100%", opacity: faceCount === 1 ? 1 : 0.5 }}>
-                      Capture Photo
-                    </button>
-                  </>
-                )}
               </div>
+              
+              <h3 className="camera-title">Identity Verification</h3>
+              <p className="camera-desc">Please capture a clear photo of yourself for the digital pass.</p>
+              
+              {!cameraActive ? (
+                <button onClick={openCamera} className="primary-button mobile-w-full">
+                  {modelsLoaded ? "Launch Camera" : "Loading AI Models..."}
+                </button>
+              ) : (
+                <>
+                  <div className="video-container">
+                    <video ref={videoRef} playsInline className="live-video" />
+                    <div className="camera-status">
+                      {faceCount === 0 && <span className="camera-overlay warning">NO FACE DETECTED</span>}
+                      {faceCount > 1 && <span className="camera-overlay warning">MULTIPLE FACES</span>}
+                      {faceCount === 1 && <span className="camera-overlay success">READY TO CAPTURE</span>}
+                    </div>
+                  </div>
+                  <button onClick={capturePhoto} disabled={faceCount !== 1} className={"primary-button mobile-w-full " + (faceCount === 1 ? "" : "disabled-btn")}>
+                    Capture Photo
+                  </button>
+                </>
+              )}
             </div>
           )}
 
           {/* Step 4: ID Card */}
           {step === 4 && (
-            <div style={{ textAlign: "center" }}>
-              <div ref={idCardRef} style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-xl)", overflow: "hidden", border: "1px solid var(--border)", boxShadow: "var(--shadow-lg)", width: "100%", maxWidth: "340px", margin: "0 auto 32px", textAlign: "left" }}>
-                <div style={{ background: "#09090b", padding: "28px 24px", color: "#fff", textAlign: "center", borderBottom: "3px solid var(--primary)" }}>
-                  <div style={{ fontSize: "11px", fontWeight: "800", opacity: 0.7, letterSpacing: "2.5px", marginBottom: "10px", textTransform: "uppercase", color: "var(--primary)" }}>SympoTech Event Management System</div>
-                  <div style={{ fontWeight: "900", fontSize: "22px", letterSpacing: "1px", color: "#fff" }}>{eventName}</div>
+            <div className="id-card-step">
+              <div ref={idCardRef} className="final-id-card">
+                <div className="card-header">
+                  <div className="card-system-name">SympoTech Event Management System</div>
+                  <div className="card-event-name">{eventName}</div>
                 </div>
-                <div style={{ padding: "32px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: "24px" }}>
-                  <div style={{ width: "140px", height: "140px", borderRadius: "24px", overflow: "hidden", border: "4px solid var(--bg-app)" }}>
-                    <img src={photo} alt="User" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <div className="card-body">
+                  <div className="card-photo-box">
+                    <img src={photo} alt="User" className="card-photo" />
                   </div>
-                  <div style={{ textAlign: "center" }}>
-                    <h2 style={{ fontSize: "24px", marginBottom: "4px" }}>{formData.name}</h2>
-                    <p style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: "600" }}>{formData.college_name}</p>
-                    <div style={{ marginTop: "16px", padding: "4px 12px", background: "var(--glass-bg)", borderRadius: "10px", fontSize: "11px", fontWeight: "800", color: "var(--primary)", display: "inline-block" }}>
+                  <div className="card-user-info">
+                    <h2 className="card-user-name">{formData.name}</h2>
+                    <p className="card-user-college">{formData.college_name}</p>
+                    <div className="card-user-id">
                       ID: #{userId.toString().slice(-6).toUpperCase()}
                     </div>
                   </div>
                 </div>
-                <div style={{ background: "var(--glass-bg)", padding: "32px 24px", textAlign: "center", borderTop: "1px dashed var(--border)" }}>
+                <div className="card-footer">
                   <QRCode value={qrData.toString()} size={100} />
                 </div>
               </div>
-              <button onClick={downloadCard} className="primary-button" style={{ width: "100%" }}>
+              <button onClick={downloadCard} className="primary-button mobile-w-full">
                 Download Digital Pass
               </button>
             </div>
@@ -336,6 +334,62 @@ export default function Register() {
         </div>
       </div>
       <canvas ref={canvasRef} style={{ display: "none" }} />
+
+      <style>{`
+        .register-page { min-height: 100vh; background: var(--bg-app); padding-bottom: 80px; }
+        .register-container { max-width: 600px; padding-top: 40px; }
+        .register-card { padding: 40px; }
+        .register-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .step-badge { background: var(--primary); color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+        .event-info { color: var(--text-secondary); margin-bottom: 32px; }
+        .event-info strong { color: var(--text-primary); }
+        
+        .register-form { display: flex; flex-direction: column; gap: 24px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { font-size: 12px; font-weight: 700; color: var(--text-muted); margin-left: 4px; }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .error-text { color: var(--danger); font-size: 11px; }
+        .continue-btn { margin-top: 12px; }
+        
+        .payment-step { text-align: center; }
+        .payment-display { background: var(--bg-surface); border: 1px solid var(--border); padding: 40px 24px; border-radius: var(--radius-lg); margin-bottom: 32px; }
+        .payment-label { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600; }
+        .payment-amount { font-size: 56px; margin-bottom: 4px; }
+        .payment-badge { color: var(--success); font-size: 13px; font-weight: 700; }
+        .payment-error { color: var(--danger); margin-bottom: 16px; }
+        
+        .camera-step { text-align: center; }
+        .qr-preview { display: flex; justify-content: center; margin-bottom: 32px; }
+        .qr-box { padding: 16px; background: #fff; border-radius: 20px; box-shadow: var(--shadow-md); }
+        .camera-title { margin-bottom: 8px; }
+        .camera-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 32px; }
+        .video-container { position: relative; margin-bottom: 24px; border-radius: var(--radius-lg); overflow: hidden; border: 2px solid var(--border); }
+        .live-video { width: 100%; display: block; background: #000; }
+        .camera-status { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); }
+        .disabled-btn { opacity: 0.5; cursor: not-allowed; }
+        
+        .id-card-step { text-align: center; }
+        .final-id-card { background: #ffffff; border-radius: 28px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); width: 100%; max-width: 360px; margin: 0 auto 32px; text-align: left; }
+        .card-header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; color: #fff; text-align: center; border-bottom: none; }
+        .card-system-name { font-size: 11px; font-weight: 800; opacity: 0.9; letter-spacing: 2.5px; margin-bottom: 10px; text-transform: uppercase; color: #fff; }
+        .card-event-name { font-weight: 900; font-size: 22px; letter-spacing: 1px; color: #fff; }
+        .card-body { padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+        .card-photo-box { width: 140px; height: 140px; border-radius: 24px; overflow: hidden; border: 5px solid #f8fafc; box-shadow: 0 10px 25px rgba(0,0,0,0.1); background: #f1f5f9; }
+        .card-photo { width: 100%; height: 100%; object-fit: cover; }
+        .card-user-info { text-align: center; width: 100%; }
+        .card-user-name { font-size: 26px; font-weight: 900; color: #1e293b; margin-bottom: 4px; }
+        .card-user-college { font-size: 14px; color: #64748b; font-weight: 700; text-transform: uppercase; }
+        .card-user-id { margin-top: 20px; padding: 6px 16px; background: #f1f5f9; border-radius: 12px; font-size: 12px; font-weight: 800; color: #4f46e5; display: inline-block; border: 1px solid #e2e8f0; }
+        .card-footer { background: #fafafa; padding: 32px 24px; text-align: center; border-top: 2px dashed #e2e8f0; }
+
+        @media (max-width: 640px) {
+          .register-card { padding: 24px; }
+          .register-header h2 { font-size: 22px; }
+          .form-row { grid-template-columns: 1fr; gap: 16px; }
+          .payment-amount { font-size: 44px; }
+          .final-id-card { max-width: 100%; }
+        }
+      `}</style>
     </div>
   );
 }

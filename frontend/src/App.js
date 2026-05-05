@@ -3,18 +3,20 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 
 // Lazy loading components for better browser performance and faster initial load
-const Home = lazy(() => import("./pages/Home"));
-const Events = lazy(() => import("./pages/Events"));
-const QRScanner = lazy(() => import("./pages/QRScanner"));
-const Register = lazy(() => import("./components/Register"));
-const AdminLogin = lazy(() => import("./pages/AdminLogin"));
-const Feedback = lazy(() => import("./pages/Feedback"));
-const IDCard = lazy(() => import("./pages/IDCard"));
-const TechnicalEvents = lazy(() => import("./pages/TechnicalEvents"));
+const Home               = lazy(() => import("./pages/Home"));
+const Events             = lazy(() => import("./pages/Events"));
+const QRScanner          = lazy(() => import("./pages/QRScanner"));
+const Register           = lazy(() => import("./components/Register"));
+const AdminLogin         = lazy(() => import("./pages/AdminLogin"));
+const AdminDashboard     = lazy(() => import("./pages/AdminDashboard"));
+const Feedback           = lazy(() => import("./pages/Feedback"));
+const IDCard             = lazy(() => import("./pages/IDCard"));
+const TechnicalEvents    = lazy(() => import("./pages/TechnicalEvents"));
 const NonTechnicalEvents = lazy(() => import("./pages/NonTechnicalEvents"));
-const About = lazy(() => import("./pages/About"));
-const Winners = lazy(() => import("./pages/Winners"));
-const AdminPublishWinners = lazy(() => import("./pages/AdminPublishWinners"));
+const About              = lazy(() => import("./pages/About"));
+const Winners            = lazy(() => import("./pages/Winners"));
+const AdminPublishWinners= lazy(() => import("./pages/AdminPublishWinners"));
+const MyTicket           = lazy(() => import("./pages/MyTicket"));
 
 /**
  * Loading Fallback Component
@@ -62,6 +64,7 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/scanner" element={<QRScanner />} />
             <Route path="/admin-login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/publish-winners" element={<AdminPublishWinners />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/technical" element={<TechnicalEvents />} />
@@ -69,6 +72,7 @@ function App() {
             <Route path="/id-card" element={<IDCard />} />
             <Route path="/about" element={<About />} />
             <Route path="/winners" element={<Winners />} />
+            <Route path="/my-ticket" element={<MyTicket />} />
           </Routes>
         </Suspense>
       </main>

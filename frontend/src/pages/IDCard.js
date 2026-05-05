@@ -86,21 +86,21 @@ function IDCard() {
           <p style={{ color: "var(--text-secondary)", marginTop: "8px", fontWeight: "700", fontSize: "14px" }}>SYMPOTECH OFFICIAL PASS 2026</p>
         </div>
 
-        {/* --- PREMIUM ID CARD (Dynamic Theme) --- */}
+        {/* --- PREMIUM ID CARD (Clean White Theme) --- */}
         <div ref={cardRef} className="id-card-export" style={{ 
           padding: 0, 
           overflow: "hidden", 
           borderRadius: "28px", 
-          border: isExporting ? "1px solid #e2e8f0" : "1px solid #334155", 
-          background: isExporting ? "#ffffff" : "#0f172a", // White for export, Dark for display
+          border: "1px solid #e2e8f0", 
+          background: "#ffffff", 
           width: "100%",
-          boxShadow: isExporting ? "none" : "0 25px 50px -12px rgba(0,0,0,0.5)",
+          boxShadow: isExporting ? "none" : "0 25px 50px -12px rgba(0,0,0,0.2)",
           position: "relative",
           transition: "all 0.3s ease"
         }}>
           
           {/* Subtle Corner Accents */}
-          <div style={{ position: "absolute", top: 0, left: 0, width: "100px", height: "100px", background: isExporting ? "radial-gradient(circle at top left, rgba(79, 70, 229, 0.05), transparent 70%)" : "radial-gradient(circle at top left, rgba(124, 58, 237, 0.1), transparent 70%)" }}></div>
+          <div style={{ position: "absolute", top: 0, left: 0, width: "100px", height: "100px", background: "radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 70%)" }}></div>
 
           {/* Premium Header Bar */}
           <div style={{ 
@@ -124,21 +124,21 @@ function IDCard() {
               height: "150px", 
               borderRadius: "24px", 
               overflow: "hidden", 
-              border: isExporting ? "5px solid #fff" : "5px solid #1e293b", 
-              boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
-              background: isExporting ? "#f1f5f9" : "#1e293b"
+              border: "5px solid #f8fafc", 
+              boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+              background: "#f1f5f9"
             }}>
               {user.photo ? (
                 <img src={user.photo} alt="User" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
-                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "64px", color: isExporting ? "#cbd5e1" : "#475569" }}>👤</div>
+                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "64px", color: "#cbd5e1" }}>👤</div>
               )}
             </div>
 
             {/* Profile Details */}
             <div style={{ textAlign: "center", width: "100%" }}>
-              <h2 style={{ fontSize: "28px", fontWeight: "900", color: isExporting ? "#1e293b" : "#ffffff", marginBottom: "4px" }}>{user.name}</h2>
-              <p style={{ color: isExporting ? "#64748b" : "#94a3b8", fontSize: "15px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>{user.college_name}</p>
+              <h2 style={{ fontSize: "28px", fontWeight: "900", color: "#1e293b", marginBottom: "4px" }}>{user.name}</h2>
+              <p style={{ color: "#64748b", fontSize: "15px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>{user.college_name}</p>
               
               {/* Info Dashboard */}
               <div style={{ 
@@ -146,17 +146,17 @@ function IDCard() {
                 gridTemplateColumns: "1fr 1fr", 
                 gap: "1px", 
                 marginTop: "32px", 
-                background: isExporting ? "#f1f5f9" : "#334155", 
+                background: "#f1f5f9", 
                 borderRadius: "20px",
                 overflow: "hidden",
-                border: isExporting ? "1px solid #e2e8f0" : "1px solid #475569"
+                border: "1px solid #e2e8f0"
               }}>
-                <div style={{ background: isExporting ? "#ffffff" : "#1e293b", padding: "18px" }}>
-                  <div style={{ fontSize: "10px", color: isExporting ? "#94a3b8" : "#64748b", fontWeight: "900", textTransform: "uppercase", marginBottom: "4px", letterSpacing: "1px" }}>EVENT REF</div>
+                <div style={{ background: "#ffffff", padding: "18px" }}>
+                  <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "900", textTransform: "uppercase", marginBottom: "4px", letterSpacing: "1px" }}>EVENT REF</div>
                   <div style={{ fontSize: "18px", fontWeight: "900", color: "#4f46e5" }}>#{user.event_id}</div>
                 </div>
-                <div style={{ background: isExporting ? "#ffffff" : "#1e293b", padding: "18px" }}>
-                  <div style={{ fontSize: "10px", color: isExporting ? "#94a3b8" : "#64748b", fontWeight: "900", textTransform: "uppercase", marginBottom: "4px", letterSpacing: "1px" }}>REG NO</div>
+                <div style={{ background: "#ffffff", padding: "18px" }}>
+                  <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "900", textTransform: "uppercase", marginBottom: "4px", letterSpacing: "1px" }}>REG NO</div>
                   <div style={{ fontSize: "18px", fontWeight: "900", color: "#7c3aed" }}>ID-{user.id}</div>
                 </div>
               </div>
@@ -165,10 +165,10 @@ function IDCard() {
 
           {/* QR Validator Section */}
           <div style={{ 
-            background: isExporting ? "#fafafa" : "#0f172a", 
+            background: "#fafafa", 
             padding: "24px 20px 40px", 
             textAlign: "center", 
-            borderTop: isExporting ? "2px dashed #e2e8f0" : "2px dashed #334155",
+            borderTop: "2px dashed #e2e8f0",
             position: "relative",
             zIndex: 1
           }}>
@@ -177,18 +177,18 @@ function IDCard() {
               padding: "12px", 
               background: "#fff", 
               borderRadius: "20px", 
-              border: isExporting ? "3px solid #000000" : "1px solid #f1f5f9", // Black border for export
-              boxShadow: isExporting ? "none" : "0 4px 10px rgba(0,0,0,0.3)" 
+              border: isExporting ? "3px solid #000000" : "1px solid #e2e8f0", 
+              boxShadow: isExporting ? "none" : "0 4px 10px rgba(0,0,0,0.05)" 
             }}>
               <QRCode 
                 value={`USER-${user.id}-${user.event_id}`} 
                 size={120} 
                 bgColor="#ffffff" 
-                fgColor="#000000" // Use pure black for better scanning on white
+                fgColor="#000000" 
                 level="H"
               />
             </div>
-            <div style={{ marginTop: "20px", fontSize: "11px", fontWeight: "900", color: isExporting ? "#94a3b8" : "#64748b", letterSpacing: "1.5px", textTransform: "uppercase" }}>Scan for Quick Verification</div>
+            <div style={{ marginTop: "20px", fontSize: "11px", fontWeight: "900", color: "#94a3b8", letterSpacing: "1.5px", textTransform: "uppercase" }}>Scan for Quick Verification</div>
           </div>
 
           {/* Bottom Branding Bar */}

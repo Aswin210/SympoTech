@@ -5,7 +5,9 @@ const supabase = require("./db");
 const path     = require("path");
 const crypto   = require("crypto");
 const axios    = require("axios");
-const Razorpay = require("razorpay");
+const Razorpay   = require("razorpay");
+const rateLimit  = require("express-rate-limit");
+const nodemailer = require("nodemailer");
 
 const app        = express();
 const PORT       = process.env.PORT           || 5000;
@@ -16,6 +18,30 @@ const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
+
+/* ── EMAIL (NODEMAILER) ── */
+const emailTransporter = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
+  ? nodemailer.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } })
+  : null;
+
+async function sendConfirmationEmail(to, name, qrData) {
+  if (!emailTransporter) return;
+  try {
+    await emailTransporter.sendMail({
+      from: `"SympoTech Events" <${process.env.EMAIL_USER}>`,
+      to,
+      subject: "🎉 Your SympoTech Registration is Confirmed!",
+      html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;background:#09090b;color:#fafafa;padding:32px;border-radius:16px;border:1px solid rgba(99,102,241,0.3)"><h2 style="color:#6366f1">SympoTech 🎓</h2><h3>Hi ${name}! You're In! 🎉</h3><p>Your registration is confirmed. Here is your QR entry code:</p><div style="background:#18181b;padding:20px;border-radius:12px;text-align:center;font-size:22px;font-weight:900;letter-spacing:4px;color:#6366f1;margin:20px 0">${qrData}</div><p style="color:#a1a1aa;font-size:13px">Show this at the entrance. You can also visit <b>My Ticket</b> on the website to view your QR code anytime.</p><p style="color:#52525b;font-size:11px;margin-top:24px">SympoTech • The Future of Events</p></div>`,
+    });
+    console.log(`📧 Email sent → ${to}`);
+  } catch (err) {
+    console.warn("⚠️ Email failed:", err.message);
+  }
+}
+
+/* ── RATE LIMITERS ── */
+const scanLimiter  = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
+const loginLimiter = rateLimit({ windowMs: 15 * 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
 
 /* ── MIDDLEWARE ── */
 app.use(cors());
@@ -153,6 +179,7 @@ app.post("/api/verify-payment", async (req, res) => {
     }, { onConflict: "razorpay_order_id" });
 
     console.log(`✅ Payment verified | User: ${user.id} | Payment: ${razorpay_payment_id}`);
+    sendConfirmationEmail(user.email, user.name, qrData);
 
     return res.json({
       success: true,
@@ -245,7 +272,7 @@ app.post("/api/update-photo", async (req, res) => {
 });
 
 /* ── ADMIN LOGIN ── */
-app.post("/admin/login", (req, res) => {
+app.post("/admin/login", loginLimiter, (req, res) => {
   const { username, password } = req.body;
   if (username === process.env.ADMIN_USER && password === process.env.ADMIN_PASS) {
     const token = crypto.randomBytes(32).toString("hex");
@@ -278,6 +305,32 @@ app.get("/admin/users", async (_req, res) => {
   res.json(rows);
 });
 
+/* ── ADMIN: DASHBOARD STATS ── */
+app.get("/admin/dashboard-stats", async (_req, res) => {
+  try {
+    const [totalRes, attRes, refRes, foodRes, usersRes] = await Promise.all([
+      supabase.from("users").select("*", { count: "exact", head: true }).eq("payment_status", "approved"),
+      supabase.from("attendance").select("*", { count: "exact", head: true }),
+      supabase.from("refreshment").select("*", { count: "exact", head: true }),
+      supabase.from("food").select("*", { count: "exact", head: true }),
+      supabase.from("users").select("id,name,college_name,phone,email,event_id,payment_status,created_at").eq("payment_status", "approved").order("id", { ascending: false }),
+    ]);
+    res.json({
+      success: true,
+      stats: {
+        total:       totalRes.count || 0,
+        attended:    attRes.count   || 0,
+        refreshment: refRes.count   || 0,
+        food:        foodRes.count  || 0,
+      },
+      users: usersRes.data || [],
+    });
+  } catch (err) {
+    console.error("Dashboard stats error:", err);
+    res.json({ success: false, message: "Failed to fetch stats." });
+  }
+});
+
 /* ── ADMIN: APPROVE / REJECT ── */
 app.post("/admin/update-status", async (req, res) => {
   const { id, status } = req.body;
@@ -300,7 +353,7 @@ app.post("/admin/update-status", async (req, res) => {
 });
 
 /* ── MARK ATTENDANCE (3-STAGE) ── */
-app.post("/mark-attendance", async (req, res) => {
+app.post("/mark-attendance", scanLimiter, async (req, res) => {
   const { qrData, mode } = req.body; 
   
   // Validation
@@ -376,8 +429,10 @@ app.post("/mark-attendance", async (req, res) => {
 
     if (insErr) throw insErr;
 
-    // Update local status for the response
-    finalStatus[`is_${mode === 'attendance' ? 'attended' : mode}`] = true;
+    // Update local status for the response (correctly map each mode to its field)
+    if (mode === 'attendance') finalStatus.is_attended = true;
+    else if (mode === 'refreshment') finalStatus.is_refreshment = true;
+    else if (mode === 'food') finalStatus.is_food = true;
 
     return res.json({
       success: true,
@@ -425,6 +480,39 @@ app.get("/transaction-history", async (_req, res) => {
 
   if (error) return res.json({ success: false, data: [] });
   res.json({ success: true, data });
+});
+
+/* ── MY TICKET LOOKUP ── */
+app.post("/my-ticket", async (req, res) => {
+  const { identifier } = req.body;
+  if (!identifier) return res.json({ success: false, message: "Email or phone required." });
+  try {
+    const { data: users, error } = await supabase
+      .from("users")
+      .select("*")
+      .or(`email.eq.${identifier},phone.eq.${identifier}`)
+      .eq("payment_status", "approved");
+    if (error || !users || users.length === 0)
+      return res.json({ success: false, message: "No confirmed registration found. Check your email/phone." });
+    const user = users[0];
+    const qrData = `${user.id}-${user.event_id}`;
+    const [attRes, refRes, foodRes] = await Promise.all([
+      supabase.from("attendance").select("id").eq("user_id", user.id).maybeSingle(),
+      supabase.from("refreshment").select("id").eq("user_id", user.id).maybeSingle(),
+      supabase.from("food").select("id").eq("user_id", user.id).maybeSingle(),
+    ]);
+    res.json({
+      success: true,
+      user: {
+        id: user.id, name: user.name, college_name: user.college_name,
+        email: user.email, phone: user.phone, event_id: user.event_id, qrData,
+        is_attended: !!attRes.data, is_refreshment: !!refRes.data, is_food: !!foodRes.data,
+      },
+    });
+  } catch (err) {
+    console.error("My ticket error:", err);
+    res.json({ success: false, message: "Server error." });
+  }
 });
 
 /* ── VERIFY USER (QR scan) ── */

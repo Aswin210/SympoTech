@@ -26,7 +26,7 @@ function AdminLogin() {
       if (res.data.success) {
         localStorage.setItem("admin", "true");
         localStorage.setItem("adminToken", res.data.token);
-        navigate("/scanner");
+        navigate("/admin/dashboard");
       } else {
         setError(res.data.message || "Invalid credentials");
       }

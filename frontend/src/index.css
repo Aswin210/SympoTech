@@ -1,8 +1,8 @@
 /* 
   ========================================
-  SYMPOTECH — NEXT-GEN DESIGN SYSTEM (v2.1)
+  SYMPOTECH — NEXT-GEN DESIGN SYSTEM (v2.2)
   ========================================
-  Enhanced Mobile Responsiveness & Proper UI
+  Enhanced Mobile Responsiveness & Proper UI Alignment
 */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -87,6 +87,8 @@ html, body {
   width: 100%;
   overflow-x: hidden;
   position: relative;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -110,30 +112,53 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  display: inline-block;
 }
 
 /* --- LAYOUT --- */
+/* --- LAYOUT --- */
 .container {
   width: 100%;
-  max-width: 1280px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 24px;
 }
 
 .grid-bento {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: 20px;
+  gap: 24px;
+  width: 100%;
+}
+
+/* Helper classes for grid spans */
+.col-12 { grid-column: span 12; }
+.col-8  { grid-column: span 8; }
+.col-6  { grid-column: span 6; }
+.col-4  { grid-column: span 4; }
+.col-3  { grid-column: span 3; }
+
+@media (max-width: 1200px) {
+  .grid-bento { grid-template-columns: repeat(8, 1fr); }
+  .col-4, .col-3 { grid-column: span 4; }
 }
 
 @media (max-width: 1024px) {
-  .grid-bento { grid-template-columns: repeat(2, 1fr); }
+  .grid-bento { 
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 20px;
+  }
+  /* Force all grid items to span full width on tablets if not specified otherwise */
   .grid-bento > * { grid-column: span 2 !important; }
 }
 
 @media (max-width: 640px) {
-  .grid-bento { grid-template-columns: 1fr; }
+  .grid-bento { 
+    grid-template-columns: 1fr; 
+    gap: 16px;
+  }
   .grid-bento > * { grid-column: span 1 !important; }
+  .container { padding: 0 16px; }
 }
 
 /* --- COMPONENTS --- */
@@ -141,9 +166,11 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: clamp(20px, 5vw, 40px);
+  padding: clamp(24px, 5vw, 40px);
   transition: var(--transition-normal);
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
 }
 
 .glass-card:hover {
@@ -168,12 +195,19 @@ h1, h2, h3, h4, h5, h6 {
   gap: 12px;
   box-shadow: 0 8px 16px -4px var(--primary-glow);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .primary-button:hover {
   transform: translateY(-2px);
   filter: brightness(1.1);
   box-shadow: 0 12px 24px -4px var(--primary-glow);
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .secondary-button {
@@ -188,6 +222,7 @@ h1, h2, h3, h4, h5, h6 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
 }
 
 .secondary-button:hover {
@@ -215,10 +250,10 @@ h1, h2, h3, h4, h5, h6 {
 
 /* --- PROPER NAVBAR --- */
 .sympo-navbar {
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  right: 24px;
+  position: sticky;
+  top: 20px;
+  left: 0;
+  right: 0;
   max-width: 1200px;
   height: var(--nav-height);
   margin: 0 auto;
@@ -227,13 +262,17 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  padding: 0 40px;
+  padding: 0 32px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   z-index: 2000;
   box-shadow: var(--shadow-lg);
   transition: var(--transition-normal);
+}
+
+@media (max-width: 1240px) {
+  .sympo-navbar { margin: 0 20px; }
 }
 
 .sympo-logo {
@@ -259,9 +298,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .sympo-links {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   align-items: center;
-  flex-shrink: 0;
 }
 
 .sympo-link {
@@ -269,7 +307,7 @@ h1, h2, h3, h4, h5, h6 {
   text-decoration: none;
   font-weight: 700;
   font-size: 14px;
-  padding: 10px 20px;
+  padding: 10px 16px;
   border-radius: var(--radius-md);
   transition: var(--transition-fast);
 }
@@ -292,7 +330,6 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-primary);
   transition: var(--transition-normal);
   font-size: 20px;
-  margin-left: 12px;
 }
 
 .theme-toggle:hover {
@@ -354,7 +391,11 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 1024px) {
   .sympo-links { display: none; }
   .sympo-hamburger { display: flex; }
-  .sympo-navbar { padding: 0 16px; }
+  .sympo-navbar { 
+    padding: 0 16px; 
+    top: 16px;
+    height: 64px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -363,14 +404,15 @@ h1, h2, h3, h4, h5, h6 {
     left: 12px; 
     right: 12px;
     width: auto;
-    padding: 0 16px;
+    margin: 0;
+    padding: 0 12px;
     height: 56px;
     border-radius: var(--radius-md);
   }
-  .sympo-logo { font-size: 10px; gap: 6px; flex: 1; min-width: 0; }
-  .sympo-logo::before { width: 8px; height: 8px; }
-  .theme-toggle { width: 34px; height: 34px; font-size: 15px; margin-left: 4px; }
-  .sympo-hamburger { width: 34px; height: 34px; gap: 3.5px; margin-right: -4px; }
+  .sympo-logo { font-size: 16px; gap: 8px; }
+  .sympo-logo::before { width: 10px; height: 10px; }
+  .theme-toggle { width: 38px; height: 38px; font-size: 16px; }
+  .sympo-hamburger { width: 38px; height: 38px; gap: 4px; }
 }
 
 /* --- ANIMATIONS --- */
@@ -400,3 +442,49 @@ h1, h2, h3, h4, h5, h6 {
 .camera-overlay.warning { background: var(--warning); color: #000; }
 .camera-overlay.success { background: var(--success); color: #fff; }
 .camera-overlay.error { background: var(--danger); color: #fff; }
+
+/* --- RESPONSIVE TABLES --- */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 20px;
+  border-radius: var(--radius-md);
+}
+
+/* --- SCANNER OVERRIDES --- */
+#reader {
+  border: none !important;
+}
+
+#reader img[alt="Info icon"],
+#reader img[alt="Camera menu icon"],
+#reader span,
+#reader__status_span {
+  display: none !important;
+}
+
+#reader__dashboard {
+  padding: 0 !important;
+}
+
+#reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 20px;
+}
+
+/* --- UTILITIES --- */
+.text-center { text-align: center; }
+.mt-40 { margin-top: 40px; }
+.mb-40 { margin-bottom: 40px; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-column { display: flex; flex-direction: column; }
+.gap-20 { gap: 20px; }
+
+@media (max-width: 640px) {
+  .mobile-text-center { text-align: center; }
+  .mobile-flex-column { flex-direction: column !important; }
+  .mobile-w-full { width: 100% !important; }
+}

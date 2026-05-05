@@ -44,45 +44,42 @@ function TechnicalEvents() {
           <p style={{ color: "var(--text-secondary)", marginTop: "12px", fontSize: "18px", fontWeight: "600" }}>Empowering the innovators of tomorrow</p>
         </div>
 
-        <div className="fade-in" style={{ display: "flex", gap: "20px", marginBottom: "48px", flexWrap: "wrap" }}>
+        <div className="fade-in search-filter-bar">
           <input
-            className="premium-input"
-            style={{ flex: "1", minWidth: "260px" }}
+            className="premium-input search-input"
             placeholder="Search for an event..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <select
-            className="premium-input"
-            style={{ width: "200px", cursor: "pointer" }}
+            className="premium-input filter-select"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           >
-            <option style={{ background: "var(--bg-surface)" }}>All</option>
-            <option style={{ background: "var(--bg-surface)" }}>Morning</option>
-            <option style={{ background: "var(--bg-surface)" }}>Afternoon</option>
+            <option value="All">All Events</option>
+            <option value="Morning">Morning</option>
+            <option value="Afternoon">Afternoon</option>
           </select>
         </div>
 
         <div className="grid-bento fade-in">
           {filteredEvents.map((event) => (
-            <div key={event.id} className="glass-card" style={{ gridColumn: "span 4", display: "flex", flexDirection: "column", gap: "24px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
-                <h3 style={{ fontSize: "20px", fontWeight: "800" }}>{event.name}</h3>
-                <span style={{ fontSize: "11px", background: "var(--primary)", color: "#fff", padding: "4px 10px", borderRadius: "8px", fontWeight: "800" }}>#{event.id}</span>
+            <div key={event.id} className="glass-card event-card col-4">
+              <div className="event-card-header">
+                <h3 className="event-title">{event.name}</h3>
+                <span className="event-badge">#{event.id}</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px", color: "var(--text-secondary)", fontSize: "14px", fontWeight: "500" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span style={{ fontSize: "18px" }}>📅</span> {event.time}
+              <div className="event-details">
+                <div className="detail-item">
+                  <span className="detail-icon">📅</span> {event.time}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span style={{ fontSize: "18px" }}>🏢</span> {event.venue}
+                <div className="detail-item">
+                  <span className="detail-icon">🏢</span> {event.venue}
                 </div>
               </div>
               <EventWinners eventId={event.id} />
               <button 
-                className="primary-button" 
-                style={{ width: "100%", marginTop: "auto", borderRadius: "12px" }}
+                className="primary-button event-btn" 
                 onClick={() => navigate("/register", { state: { eventId: event.id, eventName: event.name } })}
               >
                 Register Now
@@ -90,6 +87,34 @@ function TechnicalEvents() {
             </div>
           ))}
         </div>
+
+        <style>{`
+          .search-filter-bar { display: flex; gap: 20px; margin-bottom: 48px; flex-wrap: wrap; }
+          .search-input { flex: 1; min-width: 260px; }
+          .filter-select { width: 200px; cursor: pointer; }
+          
+          .event-card { display: flex; flex-direction: column; gap: 24px; min-height: 380px; }
+          .event-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+          .event-title { fontSize: 20px; fontWeight: 800; line-height: 1.2; }
+          .event-badge { fontSize: 11px; background: var(--primary); color: #fff; padding: 4px 10px; border-radius: 8px; font-weight: 800; }
+          
+          .event-details { display: flex; flex-direction: column; gap: 12px; color: var(--text-secondary); font-size: 14px; font-weight: 500; }
+          .detail-item { display: flex; align-items: center; gap: 10px; }
+          .detail-icon { font-size: 18px; }
+          
+          .event-btn { width: 100%; margin-top: auto; border-radius: 12px; }
+
+          @media (max-width: 1024px) {
+            .event-card { min-height: auto; }
+          }
+
+          @media (max-width: 640px) {
+            .search-filter-bar { gap: 12px; margin-bottom: 32px; }
+            .search-input { min-width: 100%; }
+            .filter-select { width: 100%; }
+            .event-card { padding: 24px; }
+          }
+        `}</style>
 
         {filteredEvents.length === 0 && (
           <div style={{ textAlign: "center", padding: "100px 20px" }}>

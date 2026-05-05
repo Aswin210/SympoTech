@@ -18,7 +18,7 @@ function About() {
 
         <div className="grid-bento">
           
-          <div className="glass-card" style={{ gridColumn: "span 12", padding: "clamp(24px, 5vw, 60px)" }}>
+          <div className="glass-card col-12" style={{ padding: "clamp(24px, 5vw, 60px)" }}>
             <h2 className="gradient-text" style={{ fontSize: "clamp(1.8rem, 4vw, 2.5rem)", marginBottom: "20px" }}>Our Mission</h2>
             <p style={{ fontSize: "clamp(1rem, 2vw, 1.2rem)", lineHeight: "1.8", color: "var(--text-primary)", opacity: 0.9 }}>
               SympoTech is a state-of-the-art Event Management System designed to streamline 
@@ -28,7 +28,7 @@ function About() {
             </p>
           </div>
 
-          <div className="glass-card" style={{ gridColumn: "span 6", display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="glass-card col-6" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
             <h3 style={{ fontSize: "20px", fontWeight: "800" }}>📞 Get in Touch</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
@@ -48,7 +48,7 @@ function About() {
             </div>
           </div>
 
-          <div className="glass-card" style={{ gridColumn: "span 6", display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="glass-card col-6" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
             <h3 style={{ fontSize: "20px", fontWeight: "800" }}>✉️ Email Support</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
@@ -68,7 +68,7 @@ function About() {
             </div>
           </div>
 
-          <div className="glass-card" style={{ gridColumn: "span 12", background: "var(--bg-surface)", borderStyle: "dashed" }}>
+          <div className="glass-card col-12" style={{ background: "var(--bg-surface)", borderStyle: "dashed" }}>
             <h3 style={{ fontSize: "20px", fontWeight: "800", marginBottom: "12px" }}>📍 Our Headquarters</h3>
             <p style={{ fontSize: "clamp(0.9rem, 2vw, 1.1rem)", lineHeight: "1.7", color: "var(--text-secondary)" }}>
               SympoTech Innovation Hub, Department of Information Technology,<br />
