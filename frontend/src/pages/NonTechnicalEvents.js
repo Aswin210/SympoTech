@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import EventWinners from "../components/EventWinners";
+import API_BASE_URL from "../api";
 
 /**
  * Non-Technical Events Listing Page
@@ -9,31 +10,37 @@ function NonTechnicalEvents() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
+  const [selectedEvents, setSelectedEvents] = useState([]);
 
-  const events = useMemo(() => [
-    { id: 1,  name: "Adzap",                  time: "9:30 AM - 12:30 PM",  venue: "Room 121" },
-    { id: 2,  name: "Just a Minute",           time: "1:00 PM - 4:30 PM",   venue: "Room 115" },
-    { id: 3,  name: "Best Manager",            time: "1:00 PM - 4:30 PM",   venue: "Room 113" },
-    { id: 4,  name: "Connections",             time: "10:00 AM - 12:00 PM", venue: "Room 110" },
-    { id: 5,  name: "Treasure Hunt",           time: "10:30 AM - 1:30 PM",  venue: "Campus Area" },
-    { id: 6,  name: "Debate",                  time: "2:00 PM - 4:00 PM",   venue: "Seminar Hall" },
-    { id: 7,  name: "Group Discussion",        time: "11:00 AM - 1:00 PM",  venue: "Room 108" },
-    { id: 8,  name: "Mime",                    time: "9:00 AM - 11:00 AM",  venue: "Auditorium" },
-    { id: 9,  name: "Photography",             time: "All Day",             venue: "Entire Campus" },
-    { id: 10, name: "Short Film",              time: "2:00 PM - 5:00 PM",   venue: "Room 105" },
-    { id: 11, name: "Quiz",                    time: "12:00 PM - 2:00 PM",  venue: "Room 102" },
-    { id: 12, name: "Stress Interview",        time: "3:00 PM - 5:00 PM",   venue: "Room 101" },
-    { id: 13, name: "Dance Battle",            time: "11:00 AM - 2:00 PM",  venue: "Auditorium" },
-    { id: 14, name: "Singing Contest",         time: "2:00 PM - 5:00 PM",   venue: "Auditorium" },
-    { id: 15, name: "Stand-up Comedy",         time: "1:00 PM - 3:00 PM",   venue: "Seminar Hall" },
-    { id: 16, name: "Fashion Show",            time: "3:00 PM - 6:00 PM",   venue: "Main Stage" },
-    { id: 17, name: "Cooking Without Fire",    time: "10:00 AM - 12:00 PM", venue: "Room 109" },
-    { id: 18, name: "Face Painting",           time: "11:30 AM - 2:30 PM",  venue: "Room 106" },
-    { id: 19, name: "Rangoli",                 time: "9:00 AM - 11:30 AM",  venue: "Entrance Area" },
-    { id: 20, name: "Mehendi",                 time: "12:00 PM - 3:00 PM",  venue: "Room 104" },
-    { id: 21, name: "Dumb Charades",           time: "2:00 PM - 4:00 PM",   venue: "Room 111" },
-    { id: 22, name: "Open Mic",                time: "4:00 PM - 6:00 PM",   venue: "Auditorium" },
-  ], []);
+  // Load selection from localStorage
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem("selected_events") || "[]");
+    setSelectedEvents(saved);
+  }, []);
+
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch events dynamically from backend
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/events`)
+      .then(res => res.json())
+      .then(data => {
+        const eventData = data.data || (Array.isArray(data) ? data : []);
+        const nonTechEvents = eventData
+          .filter(e => e.category === "Non-Technical")
+          .map(e => ({
+            id: e.id,
+            name: e.name,
+            time: "1:00 PM - 4:00 PM", // Placeholder since DB lacks time
+            venue: e.venue || "TBA",
+            teamSize: e.max_team_size || 1
+          }));
+        setEvents(nonTechEvents);
+      })
+      .catch(err => console.error("Failed to load events:", err))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredEvents = useMemo(() => events.filter((event) => {
     const matchesSearch = event.name.toLowerCase().includes(search.toLowerCase());
@@ -44,8 +51,34 @@ function NonTechnicalEvents() {
     return matchesSearch;
   }), [search, filter, events]);
 
+  const toggleEvent = (event) => {
+    setSelectedEvents((prev) => {
+      let next;
+      if (prev.find(e => e.id === event.id)) {
+        next = prev.filter(e => e.id !== event.id);
+      } else {
+        if (prev.length >= 3) {
+          alert("Maximum 3 events can be selected.");
+          return prev;
+        }
+        next = [...prev, { id: event.id, name: event.name, category: 'Non-Technical', teamSize: event.teamSize || 1 }];
+      }
+      localStorage.setItem("selected_events", JSON.stringify(next));
+      window.dispatchEvent(new Event("cartUpdated"));
+      return next;
+    });
+  };
+
+  const handleRegister = () => {
+    if (selectedEvents.length === 0) {
+      alert("Please select at least one event.");
+      return;
+    }
+    navigate("/cart");
+  };
+
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-app)", paddingBottom: "80px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-app)", paddingBottom: "120px" }}>
       <div className="container" style={{ paddingTop: "40px" }}>
         <div style={{ textAlign: "center", marginBottom: "60px" }}>
           <h1 className="gradient-text fade-in" style={{ fontSize: "clamp(2.5rem, 8vw, 4rem)" }}>Creative Arena</h1>
@@ -71,37 +104,62 @@ function NonTechnicalEvents() {
         </div>
 
         <div className="grid-bento fade-in">
-          {filteredEvents.map((event) => (
-            <div key={event.id} className="glass-card event-card col-4">
-              <div className="event-card-header">
-                <h3 className="event-title">{event.name}</h3>
-                <span className="event-badge non-tech">#{event.id}</span>
-              </div>
-              <div className="event-details">
-                <div className="detail-item">
-                  <span className="detail-icon">📅</span> {event.time}
+          {loading ? (
+            <div style={{ textAlign: "center", width: "100%", padding: "40px", gridColumn: "span 12", color: "var(--text-muted)", fontWeight: "600" }}>Loading non-technical events...</div>
+          ) : filteredEvents.length > 0 ? (
+            filteredEvents.map((event) => {
+              const isSelected = selectedEvents.some(e => e.id === event.id);
+              return (
+              <div key={event.id} className={`glass-card event-card col-4 ${isSelected ? 'selected' : ''}`}>
+                <div className="event-card-header">
+                  <h3 className="event-title">{event.name}</h3>
+                  <span className="event-badge non-tech">#{event.id}</span>
                 </div>
-                <div className="detail-item">
-                  <span className="detail-icon">📍</span> {event.venue}
+                <div className="event-details">
+                  <div className="detail-item">
+                    <span className="detail-icon">📅</span> {event.time}
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-icon">📍</span> {event.venue}
+                  </div>
                 </div>
+                <EventWinners eventId={event.id} />
+                <button 
+                  className={`primary-button event-btn non-tech ${isSelected ? 'selected-btn' : ''}`} 
+                  onClick={() => toggleEvent(event)}
+                >
+                  {isSelected ? "✓ Selected" : "Select Event"}
+                </button>
               </div>
-              <EventWinners eventId={event.id} />
-              <button 
-                className="primary-button event-btn non-tech" 
-                onClick={() => navigate("/register", { state: { eventId: event.id, eventName: event.name } })}
-              >
-                Register Now
-              </button>
+            );
+          })
+          ) : (
+            <div style={{ textAlign: "center", width: "100%", padding: "40px", gridColumn: "span 12", color: "var(--text-muted)", fontWeight: "600" }}>
+              No non-technical events found.
             </div>
-          ))}
+          )}
         </div>
+
+        {/* Floating Selection Bar */}
+        {selectedEvents.length > 0 && (
+          <div className="selection-bar fade-in-up">
+            <div className="selection-info">
+              <div className="selection-count">{selectedEvents.length} Event{selectedEvents.length > 1 ? 's' : ''} Selected</div>
+              <div className="selection-names">{selectedEvents.map(e => e.name).join(", ")}</div>
+            </div>
+            <button className="primary-button register-floating-btn non-tech" onClick={handleRegister}>
+              View Cart 🛒
+            </button>
+          </div>
+        )}
 
         <style>{`
           .search-filter-bar { display: flex; gap: 20px; margin-bottom: 48px; flex-wrap: wrap; }
           .search-input { flex: 1; min-width: 260px; }
           .filter-select { width: 200px; cursor: pointer; }
           
-          .event-card { display: flex; flex-direction: column; gap: 24px; min-height: 380px; }
+          .event-card { display: flex; flex-direction: column; gap: 24px; min-height: 380px; transition: all 0.3s ease; border: 1px solid transparent; }
+          .event-card.selected { border-color: var(--secondary); background: rgba(14, 165, 233, 0.05); }
           .event-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
           .event-title { font-size: 20px; font-weight: 800; line-height: 1.2; }
           .event-badge { font-size: 11px; background: var(--secondary); color: #fff; padding: 4px 10px; border-radius: 8px; font-weight: 800; }
@@ -111,6 +169,21 @@ function NonTechnicalEvents() {
           .detail-icon { font-size: 18px; }
           
           .event-btn { width: 100%; margin-top: auto; border-radius: 12px; background: var(--secondary); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3); }
+          .selected-btn { background: var(--success) !important; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); }
+
+          .selection-bar {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 800px; background: rgba(15, 15, 20, 0.85);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            padding: 16px 24px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);
+            display: flex; justify-content: space-between; align-items: center; gap: 20px;
+            z-index: 1000; box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+          }
+          .selection-info { flex: 1; min-width: 0; }
+          .selection-count { font-weight: 800; font-size: 16px; color: #fff; }
+          .selection-names { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+          .register-floating-btn { padding: 12px 28px; white-space: nowrap; }
+          .register-floating-btn.non-tech { background: var(--secondary); }
 
           @media (max-width: 1024px) {
             .event-card { min-height: auto; }
@@ -121,6 +194,8 @@ function NonTechnicalEvents() {
             .search-input { min-width: 100%; }
             .filter-select { width: 100%; }
             .event-card { padding: 24px; }
+            .selection-bar { bottom: 20px; flex-direction: column; text-align: center; padding: 20px; }
+            .register-floating-btn { width: 100%; }
           }
         `}</style>
 

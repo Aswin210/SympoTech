@@ -181,7 +181,7 @@ function IDCard() {
               boxShadow: isExporting ? "none" : "0 4px 10px rgba(0,0,0,0.05)" 
             }}>
               <QRCode 
-                value={`USER-${user.id}-${user.event_id}`} 
+                value={`USER-${user.id}`} 
                 size={120} 
                 bgColor="#ffffff" 
                 fgColor="#000000" 

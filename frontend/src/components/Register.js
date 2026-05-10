@@ -1,8 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import * as faceapi from "face-api.js";
 import axios from "axios";
 import QRCode from "react-qr-code";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
 
 import API_BASE_URL from "../api";
@@ -11,14 +11,43 @@ const API = API_BASE_URL;
 
 /**
  * Register Component
- * Refactored for Bento Design System with Mobile Responsiveness.
+ * Updated for Multi-Event Selection and Dynamic Pricing.
  */
 export default function Register() {
   const location = useLocation();
-  const eventId = location.state?.eventId || "";
-  const eventName = location.state?.eventName || "No Event Selected";
+  const navigate = useNavigate();
+  
+  // Handle multiple events from state or localStorage fallback
+  const selectedEvents = useMemo(() => {
+    if (location.state?.events) return location.state.events;
+    const saved = localStorage.getItem("selected_events");
+    return saved ? JSON.parse(saved) : [];
+  }, [location.state]);
 
-  const [formData, setFormData] = useState({ name: "", college_name: "", phone: "", email: "", event_id: eventId });
+  const eventNames = useMemo(() => selectedEvents.map(e => e.name).join(", "), [selectedEvents]);
+
+  // Pricing Logic
+  const totalPrice = useMemo(() => {
+    const count = selectedEvents.length;
+    if (count === 3) return 250;
+    if (count === 2) return 180;
+    if (count === 1) return 100;
+    return 0;
+  }, [selectedEvents]);
+
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    college_name: "", 
+    phone: "", 
+    email: "", 
+    event_names: eventNames,
+    team_members: {} // { eventId: [member1, member2, ...] }
+  });
+
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, event_names: eventNames }));
+  }, [eventNames]);
+
   const [fieldErrors, setFieldErrors] = useState({});
   const [paymentStatus, setPaymentStatus] = useState("idle");
   const [step, setStep] = useState(1);
@@ -38,6 +67,13 @@ export default function Register() {
   const [faceCount, setFaceCount] = useState(0);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+
+  useEffect(() => {
+    if (selectedEvents.length === 0) {
+      alert("No events in your cart. Redirecting to selection...");
+      navigate("/events");
+    }
+  }, [selectedEvents, navigate]);
 
   useEffect(() => {
     const loadModels = async () => {
@@ -63,6 +99,21 @@ export default function Register() {
     setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  const handleTeamMemberChange = (eventId, index, value) => {
+    setFormData(prev => {
+      const currentTeam = prev.team_members[eventId] || [];
+      const nextTeam = [...currentTeam];
+      nextTeam[index] = value;
+      return {
+        ...prev,
+        team_members: {
+          ...prev.team_members,
+          [eventId]: nextTeam
+        }
+      };
+    });
+  };
+
   const validateFieldAI = useCallback(async (field, value) => {
     if (!value || value.trim().length < 2) return;
     try {
@@ -86,6 +137,20 @@ export default function Register() {
     if (!formData.college_name.trim()) errs.college_name = "College name is required.";
     if (!/^\d{10}$/.test(formData.phone)) errs.phone = "Enter a valid 10-digit phone number.";
     if (!/\S+@\S+\.\S+/.test(formData.email)) errs.email = "Enter a valid email address.";
+    
+    // Validate team members
+    selectedEvents.forEach(event => {
+      const size = event.teamSize || 1;
+      if (size > 1) {
+        const members = formData.team_members[event.id] || [];
+        for (let i = 0; i < size - 1; i++) {
+          if (!members[i] || !members[i].trim()) {
+            errs[`team_${event.id}_${i}`] = `Member ${i + 2} name is required for ${event.name}.`;
+          }
+        }
+      }
+    });
+
     if (Object.keys(errs).length) { setFieldErrors(errs); return; }
     setStep(2);
   };
@@ -94,7 +159,12 @@ export default function Register() {
     setPaymentError("");
     setCreatingOrder(true);
     try {
-      const orderRes = await axios.post(`${API}/api/create-order`, { ...formData, event_id: eventId });
+      console.log("📤 Sending registration data:", { ...formData, event_names: eventNames, amount: totalPrice });
+      const orderRes = await axios.post(`${API}/api/create-order`, { 
+        ...formData, 
+        event_names: eventNames,
+        amount: totalPrice 
+      });
       if (!orderRes.data.success) {
         setPaymentError(orderRes.data.message || "Failed to create order.");
         setCreatingOrder(false);
@@ -109,7 +179,7 @@ export default function Register() {
       const options = {
         key: keyId, amount, currency, order_id: orderId,
         name: "SympoTech",
-        description: `Event Registration — ${eventName}`,
+        description: `Multi-Event Registration (${selectedEvents.length} events)`,
         theme: { color: "#6366f1" },
         handler: async (response) => {
           setPaymentStatus("verifying");
@@ -123,6 +193,8 @@ export default function Register() {
             if (verifyRes.data.success) {
               setQrData(verifyRes.data.qrData);
               setPaymentStatus("success");
+              // Clear cart on success
+              localStorage.removeItem("selected_events");
               setTimeout(() => { setPaymentStatus("idle"); setStep(3); }, 1200);
             } else {
               setPaymentStatus("idle");
@@ -204,192 +276,265 @@ export default function Register() {
   };
 
   return (
-    <div className="register-page">
-      <div className="container register-container fade-in">
-        <div className="glass-card register-card">
-          <div className="register-header">
-            <h2 className="gradient-text">Registration</h2>
-            <div className="step-badge">STEP {step}/4</div>
-          </div>
-
-          <p className="event-info">
-            Event: <strong>{eventName}</strong>
-          </p>
-
-          {/* Step 1: Form */}
-          {step === 1 && (
-            <form onSubmit={handleShowPayment} className="register-form">
-              <div className="form-group">
-                <label>FULL NAME</label>
-                <input className="premium-input" name="name" placeholder="John Doe" value={formData.name} onChange={handleChange} onBlur={handleBlur} />
-                {fieldErrors.name && <small className="error-text">{fieldErrors.name}</small>}
-              </div>
-              
-              <div className="form-group">
-                <label>COLLEGE NAME</label>
-                <input className="premium-input" name="college_name" placeholder="Anna University" value={formData.college_name} onChange={handleChange} onBlur={handleBlur} />
-                {fieldErrors.college_name && <small className="error-text">{fieldErrors.college_name}</small>}
-              </div>
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label>PHONE</label>
-                  <input className="premium-input" name="phone" placeholder="9876543210" value={formData.phone} onChange={handleChange} onBlur={handleBlur} />
-                  {fieldErrors.phone && <small className="error-text">{fieldErrors.phone}</small>}
-                </div>
-                <div className="form-group">
-                  <label>EMAIL</label>
-                  <input className="premium-input" name="email" placeholder="john@example.com" value={formData.email} onChange={handleChange} onBlur={handleBlur} />
-                  {fieldErrors.email && <small className="error-text">{fieldErrors.email}</small>}
-                </div>
-              </div>
-
-              <button type="submit" className="primary-button continue-btn">
-                Continue to Payment
-              </button>
-            </form>
-          )}
-
-          {/* Step 2: Payment */}
-          {step === 2 && (
-            <div className="payment-step">
-              <div className="payment-display">
-                <div className="payment-label">TOTAL PAYABLE</div>
-                <h1 className="payment-amount">₹1</h1>
-                <div className="payment-badge">SECURE TRANSACTION</div>
-              </div>
-              {paymentError && <div className="payment-error">{paymentError}</div>}
-              <button onClick={startRazorpayPayment} disabled={creatingOrder || paymentStatus !== "idle"} className="primary-button mobile-w-full">
-                {creatingOrder ? "Initializing..." : "Pay with Razorpay"}
-              </button>
-              <button onClick={() => setStep(1)} className="secondary-button mobile-w-full" style={{ marginTop: "16px" }}>
-                Edit Details
-              </button>
+    <>
+      <div className="register-page">
+        <div className="container register-container fade-in">
+          <div className="glass-card register-card">
+            <div className="register-header">
+              <h2 className="gradient-text">Registration</h2>
+              <div className="step-badge">STEP {step}/4</div>
             </div>
-          )}
 
-          {/* Step 3: Camera */}
-          {step === 3 && (
-            <div className="camera-step">
-              <div className="qr-preview">
-                <div className="qr-box">
-                  <QRCode value={qrData.toString()} size={140} />
-                </div>
+            <div className="event-info-box">
+              <div className="event-info-label">SELECTED EVENTS ({selectedEvents.length})</div>
+              <div className="event-list-pills">
+                {selectedEvents.map(e => (
+                  <span key={e.id} className="event-pill">{e.name}</span>
+                ))}
               </div>
-              
-              <h3 className="camera-title">Identity Verification</h3>
-              <p className="camera-desc">Please capture a clear photo of yourself for the digital pass.</p>
-              
-              {!cameraActive ? (
-                <button onClick={openCamera} className="primary-button mobile-w-full">
-                  {modelsLoaded ? "Launch Camera" : "Loading AI Models..."}
+            </div>
+
+            {/* Step 1: Form */}
+            {step === 1 && (
+              <div className="fade-in">
+                <button onClick={() => navigate("/cart")} style={{ background: "none", border: "none", color: "var(--primary)", fontWeight: "700", cursor: "pointer", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px", padding: "0" }}>
+                  ← Edit Selection in Cart
                 </button>
-              ) : (
-                <>
-                  <div className="video-container">
-                    <video ref={videoRef} playsInline className="live-video" />
-                    <div className="camera-status">
-                      {faceCount === 0 && <span className="camera-overlay warning">NO FACE DETECTED</span>}
-                      {faceCount > 1 && <span className="camera-overlay warning">MULTIPLE FACES</span>}
-                      {faceCount === 1 && <span className="camera-overlay success">READY TO CAPTURE</span>}
-                    </div>
+                <form onSubmit={handleShowPayment} className="register-form">
+                <div className="form-group">
+                  <label>FULL NAME</label>
+                  <input className="premium-input" name="name" placeholder="John Doe" value={formData.name} onChange={handleChange} onBlur={handleBlur} />
+                  {fieldErrors.name && <small className="error-text">{fieldErrors.name}</small>}
+                </div>
+                
+                <div className="form-group">
+                  <label>COLLEGE NAME</label>
+                  <input className="premium-input" name="college_name" placeholder="Anna University" value={formData.college_name} onChange={handleChange} onBlur={handleBlur} />
+                  {fieldErrors.college_name && <small className="error-text">{fieldErrors.college_name}</small>}
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>PHONE</label>
+                    <input className="premium-input" name="phone" placeholder="9876543210" value={formData.phone} onChange={handleChange} onBlur={handleBlur} />
+                    {fieldErrors.phone && <small className="error-text">{fieldErrors.phone}</small>}
                   </div>
-                  <button onClick={capturePhoto} disabled={faceCount !== 1} className={"primary-button mobile-w-full " + (faceCount === 1 ? "" : "disabled-btn")}>
-                    Capture Photo
-                  </button>
-                </>
-              )}
+                  <div className="form-group">
+                    <label>EMAIL</label>
+                    <input className="premium-input" name="email" placeholder="john@example.com" value={formData.email} onChange={handleChange} onBlur={handleBlur} />
+                    {fieldErrors.email && <small className="error-text">{fieldErrors.email}</small>}
+                  </div>
+                </div>
+
+                {/* Team Member Inputs */}
+                {selectedEvents.map(event => {
+                  const size = event.teamSize || 1;
+                  if (size <= 1) return null;
+                  
+                  return (
+                    <div key={`team-section-${event.id}`} className="team-reg-section">
+                      <div className="team-section-title">
+                        Team Members for <b>{event.name}</b>
+                      </div>
+                      <div className="team-members-grid">
+                        {Array.from({ length: size - 1 }).map((_, i) => (
+                          <div key={`${event.id}-member-${i}`} className="form-group">
+                            <label>MEMBER {i + 2} NAME</label>
+                            <input 
+                              className="premium-input" 
+                              placeholder={`Enter name of member ${i + 2}`}
+                              value={formData.team_members[event.id]?.[i] || ""}
+                              onChange={(e) => handleTeamMemberChange(event.id, i, e.target.value)}
+                            />
+                            {fieldErrors[`team_${event.id}_${i}`] && <small className="error-text">{fieldErrors[`team_${event.id}_${i}`]}</small>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <button type="submit" className="primary-button continue-btn">
+                  Continue to Payment (₹{totalPrice})
+                </button>
+              </form>
             </div>
           )}
 
-          {/* Step 4: ID Card */}
-          {step === 4 && (
-            <div className="id-card-step">
-              <div ref={idCardRef} className="final-id-card">
-                <div className="card-header">
-                  <div className="card-system-name">SympoTech Event Management System</div>
-                  <div className="card-event-name">{eventName}</div>
+            {/* Step 2: Payment */}
+            {step === 2 && (
+              <div className="payment-step">
+                <div className="payment-display">
+                  <div className="payment-label">TOTAL PAYABLE</div>
+                  <h1 className="payment-amount">₹{totalPrice}</h1>
+                  <div className="payment-badge">SECURE TRANSACTION</div>
                 </div>
-                <div className="card-body">
-                  <div className="card-photo-box">
-                    <img src={photo} alt="User" className="card-photo" />
-                  </div>
-                  <div className="card-user-info">
-                    <h2 className="card-user-name">{formData.name}</h2>
-                    <p className="card-user-college">{formData.college_name}</p>
-                    <div className="card-user-id">
-                      ID: #{userId.toString().slice(-6).toUpperCase()}
-                    </div>
-                  </div>
-                </div>
-                <div className="card-footer">
-                  <QRCode value={qrData.toString()} size={100} />
-                </div>
+                {paymentError && <div className="payment-error">{paymentError}</div>}
+                <button onClick={startRazorpayPayment} disabled={creatingOrder || paymentStatus !== "idle"} className="primary-button mobile-w-full">
+                  {creatingOrder ? "Initializing..." : "Pay with Razorpay"}
+                </button>
+                <button onClick={() => setStep(1)} className="secondary-button mobile-w-full" style={{ marginTop: "16px" }}>
+                  Edit Details
+                </button>
               </div>
-              <button onClick={downloadCard} className="primary-button mobile-w-full">
-                Download Digital Pass
-              </button>
-            </div>
-          )}
+            )}
+
+            {/* Step 3: Camera */}
+            {step === 3 && (
+              <div className="camera-step">
+                <div className="qr-preview">
+                  <div className="qr-box">
+                    <QRCode value={qrData.toString()} size={140} />
+                  </div>
+                </div>
+                
+                <h3 className="camera-title">Identity Verification</h3>
+                <p className="camera-desc">Please capture a clear photo of yourself for the digital pass.</p>
+                
+                {!cameraActive ? (
+                  <button onClick={openCamera} className="primary-button mobile-w-full">
+                    {modelsLoaded ? "Launch Camera" : "Loading AI Models..."}
+                  </button>
+                ) : (
+                  <>
+                    <div className="video-container">
+                      <video ref={videoRef} playsInline className="live-video" />
+                      <div className="camera-status">
+                        {faceCount === 0 && <span className="camera-overlay warning">NO FACE DETECTED</span>}
+                        {faceCount > 1 && <span className="camera-overlay warning">MULTIPLE FACES</span>}
+                        {faceCount === 1 && <span className="camera-overlay success">READY TO CAPTURE</span>}
+                      </div>
+                    </div>
+                    <button onClick={capturePhoto} disabled={faceCount !== 1} className={"primary-button mobile-w-full " + (faceCount === 1 ? "" : "disabled-btn")}>
+                      Capture Photo
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Step 4: ID Card */}
+            {step === 4 && (
+              <div className="id-card-step">
+                <div ref={idCardRef} className="final-id-card">
+                  <div className="card-header">
+                    <div className="card-system-name">SympoTech Event Management System</div>
+                    <div className="card-event-name">{eventNames.length > 30 ? selectedEvents.length + " Events" : eventNames}</div>
+                  </div>
+                  <div className="card-body">
+                    <div className="card-photo-box">
+                      <img src={photo} alt="User" className="card-photo" />
+                    </div>
+                    <div className="card-user-info">
+                      <h2 className="card-user-name">{formData.name}</h2>
+                      <p className="card-user-college">{formData.college_name}</p>
+                      <div className="card-user-id">
+                        ID: #{userId.toString().slice(-6).toUpperCase()}
+                      </div>
+                      <div style={{ marginTop: "10px", fontSize: "10px", color: "#64748b", fontWeight: "600" }}>
+                        {eventNames}
+                      </div>
+                      {Object.keys(formData.team_members).length > 0 && (
+                        <div style={{ marginTop: "5px", fontSize: "9px", color: "#94a3b8" }}>
+                          Team: {Object.values(formData.team_members).flat().join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="card-footer">
+                    <QRCode value={qrData.toString()} size={100} />
+                  </div>
+                </div>
+                <button onClick={downloadCard} className="primary-button mobile-w-full">
+                  Download Digital Pass
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-      <canvas ref={canvasRef} style={{ display: "none" }} />
+        <canvas ref={canvasRef} style={{ display: "none" }} />
 
-      <style>{`
-        .register-page { min-height: 100vh; background: var(--bg-app); padding-bottom: 80px; }
-        .register-container { max-width: 600px; padding-top: 40px; }
-        .register-card { padding: 40px; }
-        .register-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
-        .step-badge { background: var(--primary); color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
-        .event-info { color: var(--text-secondary); margin-bottom: 32px; }
-        .event-info strong { color: var(--text-primary); }
-        
-        .register-form { display: flex; flex-direction: column; gap: 24px; }
-        .form-group { display: flex; flex-direction: column; gap: 8px; }
-        .form-group label { font-size: 12px; font-weight: 700; color: var(--text-muted); margin-left: 4px; }
-        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
-        .error-text { color: var(--danger); font-size: 11px; }
-        .continue-btn { margin-top: 12px; }
-        
-        .payment-step { text-align: center; }
-        .payment-display { background: var(--bg-surface); border: 1px solid var(--border); padding: 40px 24px; border-radius: var(--radius-lg); margin-bottom: 32px; }
-        .payment-label { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600; }
-        .payment-amount { font-size: 56px; margin-bottom: 4px; }
-        .payment-badge { color: var(--success); font-size: 13px; font-weight: 700; }
-        .payment-error { color: var(--danger); margin-bottom: 16px; }
-        
-        .camera-step { text-align: center; }
-        .qr-preview { display: flex; justify-content: center; margin-bottom: 32px; }
-        .qr-box { padding: 16px; background: #fff; border-radius: 20px; box-shadow: var(--shadow-md); }
-        .camera-title { margin-bottom: 8px; }
-        .camera-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 32px; }
-        .video-container { position: relative; margin-bottom: 24px; border-radius: var(--radius-lg); overflow: hidden; border: 2px solid var(--border); }
-        .live-video { width: 100%; display: block; background: #000; }
-        .camera-status { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); }
-        .disabled-btn { opacity: 0.5; cursor: not-allowed; }
-        
-        .id-card-step { text-align: center; }
-        .final-id-card { background: #ffffff; border-radius: 28px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); width: 100%; max-width: 360px; margin: 0 auto 32px; text-align: left; }
-        .card-header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; color: #fff; text-align: center; border-bottom: none; }
-        .card-system-name { font-size: 11px; font-weight: 800; opacity: 0.9; letter-spacing: 2.5px; margin-bottom: 10px; text-transform: uppercase; color: #fff; }
-        .card-event-name { font-weight: 900; font-size: 22px; letter-spacing: 1px; color: #fff; }
-        .card-body { padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
-        .card-photo-box { width: 140px; height: 140px; border-radius: 24px; overflow: hidden; border: 5px solid #f8fafc; box-shadow: 0 10px 25px rgba(0,0,0,0.1); background: #f1f5f9; }
-        .card-photo { width: 100%; height: 100%; object-fit: cover; }
-        .card-user-info { text-align: center; width: 100%; }
-        .card-user-name { font-size: 26px; font-weight: 900; color: #1e293b; margin-bottom: 4px; }
-        .card-user-college { font-size: 14px; color: #64748b; font-weight: 700; text-transform: uppercase; }
-        .card-user-id { margin-top: 20px; padding: 6px 16px; background: #f1f5f9; border-radius: 12px; font-size: 12px; font-weight: 800; color: #4f46e5; display: inline-block; border: 1px solid #e2e8f0; }
-        .card-footer { background: #fafafa; padding: 32px 24px; text-align: center; border-top: 2px dashed #e2e8f0; }
+        <style>{`
+          .register-page { min-height: 100vh; background: var(--bg-app); padding-bottom: 80px; }
+          .register-container { max-width: 600px; padding-top: 40px; }
+          .register-card { padding: 40px; }
+          .register-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+          .step-badge { background: var(--primary); color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+          
+          .event-info-box { margin-bottom: 32px; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 16px; border: 1px solid var(--border); }
+          .event-info-label { font-size: 11px; font-weight: 800; color: var(--text-muted); margin-bottom: 12px; letter-spacing: 1px; }
+          .event-list-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+          .event-pill { background: var(--primary); color: #fff; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+          
+          .register-form { display: flex; flex-direction: column; gap: 24px; }
+          .form-group { display: flex; flex-direction: column; gap: 8px; }
+          .form-group label { font-size: 12px; font-weight: 700; color: var(--text-muted); margin-left: 4px; }
+          .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+          .error-text { color: var(--danger); font-size: 11px; }
+          .continue-btn { margin-top: 12px; }
+          
+          .payment-step { text-align: center; }
+          .payment-display { background: var(--bg-surface); border: 1px solid var(--border); padding: 40px 24px; border-radius: var(--radius-lg); margin-bottom: 32px; }
+          .payment-label { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600; }
+          .payment-amount { font-size: 56px; margin-bottom: 4px; }
+          .payment-badge { color: var(--success); font-size: 13px; font-weight: 700; }
+          .payment-error { color: var(--danger); margin-bottom: 16px; }
+          
+          .camera-step { text-align: center; }
+          .qr-preview { display: flex; justify-content: center; margin-bottom: 32px; }
+          .qr-box { padding: 16px; background: #fff; border-radius: 20px; box-shadow: var(--shadow-md); }
+          .camera-title { margin-bottom: 8px; }
+          .camera-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 32px; }
+          .video-container { position: relative; margin-bottom: 24px; border-radius: var(--radius-lg); overflow: hidden; border: 2px solid var(--border); }
+          .live-video { width: 100%; display: block; background: #000; }
+          .camera-status { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); }
+          .disabled-btn { opacity: 0.5; cursor: not-allowed; }
+          
+          .id-card-step { text-align: center; }
+          .final-id-card { background: #ffffff; border-radius: 28px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); width: 100%; max-width: 360px; margin: 0 auto 32px; text-align: left; }
+          .card-header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; color: #fff; text-align: center; border-bottom: none; }
+          .card-system-name { font-size: 11px; font-weight: 800; opacity: 0.9; letter-spacing: 2.5px; margin-bottom: 10px; text-transform: uppercase; color: #fff; }
+          .card-event-name { font-weight: 900; font-size: 20px; letter-spacing: 1px; color: #fff; line-height: 1.2; }
+          .card-body { padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+          .card-photo-box { width: 140px; height: 140px; border-radius: 24px; overflow: hidden; border: 5px solid #f8fafc; box-shadow: 0 10px 25px rgba(0,0,0,0.1); background: #f1f5f9; }
+          .card-photo { width: 100%; height: 100%; object-fit: cover; }
+          .card-user-info { text-align: center; width: 100%; }
+          .card-user-name { font-size: 26px; font-weight: 900; color: #1e293b; margin-bottom: 4px; }
+          .card-user-college { font-size: 14px; color: #64748b; font-weight: 700; text-transform: uppercase; }
+          .card-user-id { margin-top: 20px; padding: 6px 16px; background: #f1f5f9; border-radius: 12px; font-size: 12px; font-weight: 800; color: #4f46e5; display: inline-block; border: 1px solid #e2e8f0; }
+          .card-footer { background: #fafafa; padding: 32px 24px; text-align: center; border-top: 2px dashed #e2e8f0; }
 
-        @media (max-width: 640px) {
-          .register-card { padding: 24px; }
-          .register-header h2 { font-size: 22px; }
-          .form-row { grid-template-columns: 1fr; gap: 16px; }
-          .payment-amount { font-size: 44px; }
-          .final-id-card { max-width: 100%; }
+          @media (max-width: 640px) {
+            .register-card { padding: 24px; }
+            .register-header h2 { font-size: 22px; }
+            .form-row { grid-template-columns: 1fr; gap: 16px; }
+            .payment-amount { font-size: 44px; }
+            .final-id-card { max-width: 100%; }
+        }
+
+        .team-reg-section {
+          background: rgba(255,255,255,0.03);
+          border: 1px dashed var(--border);
+          border-radius: 12px;
+          padding: 16px;
+          margin-top: 8px;
+        }
+        .team-section-title {
+          font-size: 11px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 12px;
+          border-bottom: 1px solid var(--border);
+          padding-bottom: 8px;
+        }
+        .team-members-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 12px;
         }
       `}</style>
     </div>
+  </>
   );
 }

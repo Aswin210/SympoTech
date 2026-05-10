@@ -52,7 +52,7 @@
   --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   
-  --nav-height: 72px;
+  --nav-height: 64px;
 }
 
 [data-theme="light"] {
@@ -105,6 +105,14 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1.1;
+}
+
+.app-main {
+  min-height: 100vh;
+  padding-top: 100px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .gradient-text {
@@ -250,49 +258,50 @@ h1, h2, h3, h4, h5, h6 {
 
 /* --- PROPER NAVBAR --- */
 .sympo-navbar {
-  position: sticky;
-  top: 20px;
-  left: 0;
-  right: 0;
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
   max-width: 1200px;
   height: var(--nav-height);
-  margin: 0 auto;
   background: var(--bg-navbar);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding: 0 32px;
+  border-radius: 100px;
+  padding: 0 12px 0 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   z-index: 2000;
-  box-shadow: var(--shadow-lg);
-  transition: var(--transition-normal);
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.3);
+  transition: all var(--transition-normal);
 }
 
 @media (max-width: 1240px) {
-  .sympo-navbar { margin: 0 20px; }
+  .sympo-navbar { width: calc(100% - 32px); }
 }
 
 .sympo-logo {
-  font-size: 22px;
-  font-weight: 900;
+  font-size: 18px;
+  font-weight: 800;
   text-decoration: none;
   color: var(--text-primary);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
+  letter-spacing: -0.5px;
 }
 
 .sympo-logo::before {
   content: '';
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   background: var(--primary);
-  border-radius: 4px;
-  box-shadow: 0 0 15px var(--primary);
+  border-radius: 3px;
+  box-shadow: 0 0 10px var(--primary);
   flex-shrink: 0;
 }
 
@@ -305,16 +314,28 @@ h1, h2, h3, h4, h5, h6 {
 .sympo-link {
   color: var(--text-secondary);
   text-decoration: none;
-  font-weight: 700;
-  font-size: 14px;
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
-  transition: var(--transition-fast);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 0 14px;
+  border-radius: 100px;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  white-space: nowrap;
 }
 
 .sympo-link:hover {
   color: var(--text-primary);
-  background: var(--glass-bg);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sympo-link.active {
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.2);
 }
 
 .theme-toggle {
@@ -393,21 +414,19 @@ h1, h2, h3, h4, h5, h6 {
   .sympo-hamburger { display: flex; }
   .sympo-navbar { 
     padding: 0 16px; 
-    top: 16px;
-    height: 64px;
+    top: 12px;
+    height: 60px;
+    width: calc(100% - 24px);
   }
 }
 
 @media (max-width: 480px) {
   .sympo-navbar { 
-    top: 12px; 
-    left: 12px; 
-    right: 12px;
-    width: auto;
-    margin: 0;
+    top: 10px; 
+    width: calc(100% - 16px);
     padding: 0 12px;
     height: 56px;
-    border-radius: var(--radius-md);
+    border-radius: 100px;
   }
   .sympo-logo { font-size: 16px; gap: 8px; }
   .sympo-logo::before { width: 10px; height: 10px; }
@@ -419,6 +438,15 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes slideUpFade {
   from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes navFadeIn {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.nav-fade-in {
+  animation: navFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .fade-in {

@@ -11,9 +11,8 @@ function Home() {
   const navigate = useNavigate();
 
   return (
-    <div className="home-container" style={{ minHeight: "100vh", paddingBottom: "80px" }}>
-      <div className="container">
-
+    <div className="home-wrapper">
+      <div className="container home-flex-container">
         {/* Hero Section */}
         <section className="hero-section fade-in">
           {/* Background Video */}
@@ -34,11 +33,11 @@ function Home() {
             </p>
 
             {/* CTA Buttons */}
-            <div className="hero-buttons mobile-flex-column">
-              <button onClick={() => navigate("/events")} className="primary-button mobile-w-full" style={{ padding: "16px 36px", fontSize: "16px" }}>
+            <div className="hero-buttons">
+              <button onClick={() => navigate("/events")} className="primary-button hero-btn">
                 Get Started
               </button>
-              <button onClick={() => navigate("/my-ticket")} className="secondary-button mobile-w-full" style={{ padding: "16px 36px", fontSize: "16px", background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)" }}>
+              <button onClick={() => navigate("/my-ticket")} className="secondary-button hero-btn glass-btn">
                 🎫 My Ticket
               </button>
             </div>
@@ -51,9 +50,25 @@ function Home() {
       </div>
 
       <style>{`
+        .home-wrapper {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          padding-bottom: 20px;
+        }
+        .home-flex-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          height: 100%;
+        }
         .hero-section {
           position: relative;
-          height: min(85vh, 780px);
+          flex: 1;
+          max-height: calc(100vh - 220px);
+          min-height: 500px;
           border-radius: var(--radius-xl);
           overflow: hidden;
           display: flex;
@@ -61,7 +76,7 @@ function Home() {
           align-items: center;
           justify-content: center;
           box-shadow: var(--shadow-lg);
-          margin-top: 20px;
+          margin-top: 10px;
         }
         .hero-video {
           position: absolute; top: 0; left: 0;
@@ -71,20 +86,31 @@ function Home() {
         .hero-overlay {
           position: absolute; top: 0; left: 0;
           width: 100%; height: 100%;
-          background: linear-gradient(to bottom, rgba(9,9,11,0.3), rgba(9,9,11,0.85));
+          background: linear-gradient(to bottom, rgba(9,9,11,0.2), rgba(9,9,11,0.85));
           z-index: -1;
         }
         .hero-content { text-align: center; max-width: 800px; padding: 0 24px; z-index: 1; }
-        .hero-title { font-size: clamp(2.5rem,10vw,5rem); margin-bottom: 16px; }
-        .hero-subtitle { font-size: clamp(1rem,2vw,1.3rem); color: rgba(255,255,255,0.7); margin-bottom: 40px; font-weight: 500; max-width: 560px; margin: 0 auto 40px; }
+        .hero-title { font-size: clamp(3rem, 12vw, 6rem); margin-bottom: 12px; line-height: 1; }
+        .hero-subtitle { font-size: clamp(1rem, 2vw, 1.25rem); color: rgba(255,255,255,0.8); margin-bottom: 40px; font-weight: 500; max-width: 580px; margin: 0 auto 40px; line-height: 1.5; }
         
-        .hero-buttons { display: flex; gap: 16px; justify-content: center; position: relative; z-index: 10; }
+        .hero-buttons { display: flex; gap: 20px; justify-content: center; position: relative; z-index: 10; }
+        .hero-btn { padding: 18px 40px; font-size: 16px; min-width: 180px; }
+        .glass-btn { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px); }
+        .glass-btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4); }
         
-        .home-footer { text-align: center; margin-top: 80px; padding-bottom: 20px; color: var(--text-muted); font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+        .home-footer { text-align: center; padding: 20px 0; color: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: 3px; opacity: 0.6; }
+
+        @media (max-width: 1024px) {
+          .home-wrapper { overflow: auto; height: auto; }
+          .hero-section { max-height: none; height: auto; padding: 120px 20px; }
+        }
 
         @media (max-width: 640px) {
-          .hero-section { height: auto; min-height: 600px; padding: 100px 0; border-radius: var(--radius-lg); }
-          .hero-buttons { flex-direction: column; width: 100%; padding: 0 20px; }
+          .hero-section { min-height: 550px; border-radius: var(--radius-lg); margin-top: 0; }
+          .hero-buttons { flex-direction: column; width: 100%; max-width: 300px; margin: 0 auto; gap: 12px; }
+          .hero-btn { width: 100%; padding: 16px; min-width: 0; }
+          .hero-title { font-size: 3.5rem; }
+          .home-footer { margin-top: 40px; }
         }
       `}</style>
     </div>

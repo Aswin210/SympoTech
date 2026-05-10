@@ -11,6 +11,7 @@ function AdminPublishWinners() {
   
   // State management
   const [eventId, setEventId] = useState("");
+  const [events, setEvents] = useState([]);
   const [firstPlace, setFirstPlace] = useState("");
   const [secondPlace, setSecondPlace] = useState("");
   const [thirdPlace, setThirdPlace] = useState("");
@@ -18,10 +19,26 @@ function AdminPublishWinners() {
   const [msgType, setMsgType] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Authentication check
+  // Authentication check and fetch events
   useEffect(() => {
     const token = localStorage.getItem("adminToken");
-    if (!token) navigate("/admin-login");
+    if (!token) {
+      navigate("/admin-login");
+      return;
+    }
+
+    const fetchEvents = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/events`);
+        const result = await response.json();
+        if (result.success) {
+          setEvents(result.data || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch events:", err);
+      }
+    };
+    fetchEvents();
   }, [navigate]);
 
   /**
@@ -37,7 +54,10 @@ function AdminPublishWinners() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/event-winners`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("adminToken")}`
+        },
         body: JSON.stringify({
           event_id: parseInt(eventId),
           first_place: firstPlace,
@@ -75,6 +95,9 @@ function AdminPublishWinners() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/all-event-winners`, {
         method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("adminToken")}`
+        }
       });
 
       const result = await response.json();
@@ -140,14 +163,20 @@ function AdminPublishWinners() {
               
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <label style={{ fontSize: "12px", fontWeight: "900", color: "var(--text-muted)", marginLeft: "4px", textTransform: "uppercase", letterSpacing: "1.5px" }}>Event Identification</label>
-                <input
+                <select
                   className="premium-input"
-                  type="number"
-                  placeholder="Enter Event ID (e.g. 101)"
                   value={eventId}
                   onChange={(e) => setEventId(e.target.value)}
                   required
-                />
+                  style={{ backgroundColor: "var(--bg-app)", appearance: "none" }}
+                >
+                  <option value="" disabled>Select an Event</option>
+                  {events.map((evt) => (
+                    <option key={evt.id} value={evt.id}>
+                      {evt.name} ({evt.category})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ display: "grid", gap: "20px" }}>

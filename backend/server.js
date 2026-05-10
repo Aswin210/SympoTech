@@ -8,10 +8,27 @@ const axios    = require("axios");
 const Razorpay   = require("razorpay");
 const rateLimit  = require("express-rate-limit");
 const nodemailer = require("nodemailer");
+const jwt      = require("jsonwebtoken");
 
 const app        = express();
 const PORT       = process.env.PORT           || 5000;
 const AI_SERVICE = process.env.AI_SERVICE_URL || "http://localhost:5001";
+const JWT_SECRET = process.env.JWT_SECRET     || "fallback_secret_for_development_change_in_prod";
+
+// Admin Auth Middleware
+const authenticateAdmin = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) return res.status(401).json({ success: false, message: "Unauthorized: Missing Token" });
+  
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ success: false, message: "Forbidden: Invalid Token" });
+    if (decoded.role !== 'admin') return res.status(403).json({ success: false, message: "Forbidden: Not Admin" });
+    req.admin = decoded;
+    next();
+  });
+};
 
 /* ── RAZORPAY ── */
 const razorpay = new Razorpay({
@@ -55,12 +72,41 @@ app.get("/", (_req, res) =>
   res.json({ success: true, message: "Backend running 🚀" })
 );
 
+/* ── UPDATE PHOTO ── */
+app.post("/api/update-photo", async (req, res) => {
+  const { userId, photo } = req.body;
+  if (!userId || !photo)
+    return res.json({ success: false, message: "userId and photo required." });
+
+  console.log(`📸 Updating photo for user ${userId}`);
+  const { error } = await supabase
+    .from("users")
+    .update({ photo })
+    .eq("id", userId);
+
+  if (error) {
+    console.error("❌ Photo update error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+  res.json({ success: true });
+});
+
 /* ── RAZORPAY: CREATE ORDER ── */
 app.post("/api/create-order", async (req, res) => {
-  const { name, college_name, phone, email, event_id } = req.body;
+  console.log("📝 Incoming registration request:", req.body);
+  const { name, college_name, phone, email, event_names, amount: customAmount, team_members } = req.body;
 
-  if (!name || !college_name || !phone || !email || !event_id)
-    return res.json({ success: false, message: "All registration fields are required." });
+  const missing = [];
+  if (!name) missing.push("name");
+  if (!college_name) missing.push("college_name");
+  if (!phone) missing.push("phone");
+  if (!email) missing.push("email");
+  if (!event_names) missing.push("event_names");
+
+  if (missing.length > 0) {
+    console.warn("⚠️ Missing fields:", missing.join(", "));
+    return res.json({ success: false, message: `Missing fields: ${missing.join(", ")}` });
+  }
   if (!/^\d{10}$/.test(phone))
     return res.json({ success: false, message: "Enter a valid 10-digit phone number." });
   if (!/\S+@\S+\.\S+/.test(email))
@@ -78,11 +124,14 @@ app.post("/api/create-order", async (req, res) => {
     if (existing && existing.length > 0)
       return res.json({ success: false, message: "❌ This phone or email is already registered." });
 
+    // Dynamic amount handling (customAmount is in INR, Razorpay expects paise)
+    const finalAmount = (customAmount || 1) * 100; 
+
     const orderOptions = {
-      amount:   100,
+      amount:   finalAmount,
       currency: "INR",
       receipt:  `reg_${Date.now()}`,
-      notes:    { name, college_name, phone, email, event_id },
+      notes:    { name, college_name, phone, email, event_names: String(event_names) },
     };
 
     console.log("📦 Creating Razorpay order:", orderOptions);
@@ -97,7 +146,8 @@ app.post("/api/create-order", async (req, res) => {
         college_name,
         phone,
         email,
-        event_id,
+        event_names: String(event_names), 
+        team_members: team_members ? JSON.stringify(team_members) : null,
         razorpay_order_id: order.id,
         payment_status:    "pending",
       })
@@ -119,8 +169,9 @@ app.post("/api/create-order", async (req, res) => {
 
   } catch (err) {
     console.error("❌ Create order error:", JSON.stringify(err, null, 2));
-    if (err.code === "23505")
+    if (err.code === "23505" || err.message?.includes("unique_phone") || err.message?.includes("unique_email"))
       return res.json({ success: false, message: "❌ Already registered with this phone or email." });
+    
     const errMsg = err?.error?.description || err?.message || "Unknown error";
     return res.json({ success: false, message: `Failed to create order: ${errMsg}` });
   }
@@ -163,7 +214,70 @@ app.post("/api/verify-payment", async (req, res) => {
       return res.json({ success: false, message: "User not found." });
 
     const user   = rows[0];
-    const qrData = `${user.id}-${user.event_id}`;
+    const qrData = `${user.id}-${user.event_names}`;
+
+    // Split event names and store in categorized tables
+    const names = (user.event_names || "").split(",").map(n => n.trim()).filter(n => n);
+    if (names.length > 0) {
+      for (const ename of names) {
+        try {
+          // Fetch event category by name (using limit(1) to avoid .single() error if duplicates exist)
+          const { data: eventRows } = await supabase
+            .from("events")
+            .select("name, category")
+            .ilike("name", ename)
+            .limit(1);
+
+          const eventData = eventRows && eventRows.length > 0 ? eventRows[0] : null;
+
+          if (eventData) {
+            // Get team members for this specific event
+            let eventTeamMembers = "";
+            try {
+              const allTeamMembers = typeof user.team_members === 'string' 
+                ? JSON.parse(user.team_members) 
+                : (user.team_members || {});
+              
+              // We need the event ID to get the team members.
+              const { data: eventDetails } = await supabase.from("events").select("id").ilike("name", ename).limit(1);
+              if (eventDetails && eventDetails.length > 0) {
+                const eid = eventDetails[0].id;
+                // Check both string and number keys
+                const members = allTeamMembers[eid] || allTeamMembers[String(eid)];
+                if (members && Array.isArray(members)) {
+                  eventTeamMembers = members.filter(m => m && m.trim()).join(", ");
+                }
+              }
+            } catch (e) {
+              console.error("Error parsing team members:", e);
+            }
+
+            const regData = {
+              user_id: user.id,
+              name: user.name,
+              email: user.email,
+              phone: user.phone,
+              event_name: eventData.name,
+              team_members: eventTeamMembers
+            };
+
+            if (eventData.category === "Technical") {
+              const { error: regErr } = await supabase.from("technical_registrations").insert(regData);
+              if (regErr) console.error(`❌ Technical Reg Error for ${user.name}:`, regErr.message);
+              else console.log(`✅ Stored Technical Registration: ${user.name} -> ${eventData.name}`);
+            } else if (eventData.category === "Non-Technical") {
+              const { error: regErr } = await supabase.from("non_technical_registrations").insert(regData);
+              if (regErr) console.error(`❌ Non-Technical Reg Error for ${user.name}:`, regErr.message);
+              else console.log(`✅ Stored Non-Technical Registration: ${user.name} -> ${eventData.name}`);
+            }
+          } else {
+            console.warn(`⚠️ Event "${ename}" not found in events table. Cannot categorize.`);
+          }
+        } catch (catErr) {
+          console.error(`⚠️ Categorization error for Event ${ename}:`, catErr.message);
+        }
+      }
+    }
 
     // Insert transaction history (ignore duplicate)
     await supabase.from("transaction_history").upsert({
@@ -171,11 +285,11 @@ app.post("/api/verify-payment", async (req, res) => {
       name:                user.name,
       email:               user.email,
       phone:               user.phone,
-      event_id:            user.event_id,
+      event_id:            user.event_names, // Using names in the event_id field for history
       razorpay_order_id,
       razorpay_payment_id,
-      amount:              "100",
-      status:              "approved",
+      amount:              "PAID",
+      status:              "success",
     }, { onConflict: "razorpay_order_id" });
 
     console.log(`✅ Payment verified | User: ${user.id} | Payment: ${razorpay_payment_id}`);
@@ -275,18 +389,18 @@ app.post("/api/update-photo", async (req, res) => {
 app.post("/admin/login", loginLimiter, (req, res) => {
   const { username, password } = req.body;
   if (username === process.env.ADMIN_USER && password === process.env.ADMIN_PASS) {
-    const token = crypto.randomBytes(32).toString("hex");
+    const token = jwt.sign({ role: "admin", username }, JWT_SECRET, { expiresIn: "8h" });
     return res.json({ success: true, token, message: "Login successful" });
   }
   return res.status(401).json({ success: false, message: "❌ Invalid credentials." });
 });
 
 /* ── ADMIN: GET ALL USERS ── */
-app.get("/admin/users", async (_req, res) => {
+app.get("/admin/users", authenticateAdmin, async (_req, res) => {
   const { data, error } = await supabase
     .from("users")
     .select(`
-      id, name, college_name, phone, email, event_id,
+      id, name, college_name, phone, email, event_names, team_members,
       razorpay_order_id, razorpay_payment_id,
       payment_status, created_at, photo,
       events ( name )
@@ -306,14 +420,14 @@ app.get("/admin/users", async (_req, res) => {
 });
 
 /* ── ADMIN: DASHBOARD STATS ── */
-app.get("/admin/dashboard-stats", async (_req, res) => {
+app.get("/admin/dashboard-stats", authenticateAdmin, async (_req, res) => {
   try {
     const [totalRes, attRes, refRes, foodRes, usersRes] = await Promise.all([
       supabase.from("users").select("*", { count: "exact", head: true }).eq("payment_status", "approved"),
       supabase.from("attendance").select("*", { count: "exact", head: true }),
       supabase.from("refreshment").select("*", { count: "exact", head: true }),
       supabase.from("food").select("*", { count: "exact", head: true }),
-      supabase.from("users").select("id,name,college_name,phone,email,event_id,payment_status,created_at").eq("payment_status", "approved").order("id", { ascending: false }),
+      supabase.from("users").select("id,name,college_name,phone,email,event_names,team_members,payment_status,created_at").eq("payment_status", "approved").order("id", { ascending: false }),
     ]);
     res.json({
       success: true,
@@ -332,7 +446,7 @@ app.get("/admin/dashboard-stats", async (_req, res) => {
 });
 
 /* ── ADMIN: APPROVE / REJECT ── */
-app.post("/admin/update-status", async (req, res) => {
+app.post("/admin/update-status", authenticateAdmin, async (req, res) => {
   const { id, status } = req.body;
   if (!["approved", "rejected"].includes(status))
     return res.json({ success: false, message: "Invalid status." });
@@ -362,18 +476,16 @@ app.post("/mark-attendance", scanLimiter, async (req, res) => {
     return res.json({ success: false, message: "❌ Invalid scan mode." });
   }
 
-  // Parse QR Data
+  // Parse QR Data robustly
   const parts = qrData.split("-");
-  let userId, eventId;
+  let userId;
   if (parts[0] === "USER") {
     userId = parts[1];
-    eventId = parts[2];
   } else {
-    userId = parts[0];
-    eventId = parts[1];
+    userId = parts[0]; // Fallback for older QR codes
   }
 
-  if (!userId || !eventId)
+  if (!userId)
     return res.json({ success: false, message: "Invalid QR format." });
 
   try {
@@ -423,7 +535,7 @@ app.post("/mark-attendance", scanLimiter, async (req, res) => {
       .insert({ 
         user_id: user.id, 
         name: user.name, 
-        event_id: eventId, 
+        event_names: user.event_names, // Pull directly from DB, avoiding QR string parsing errors
         phone: user.phone 
       });
 
@@ -495,7 +607,7 @@ app.post("/my-ticket", async (req, res) => {
     if (error || !users || users.length === 0)
       return res.json({ success: false, message: "No confirmed registration found. Check your email/phone." });
     const user = users[0];
-    const qrData = `${user.id}-${user.event_id}`;
+    const qrData = `${user.id}-${user.event_names}`;
     const [attRes, refRes, foodRes] = await Promise.all([
       supabase.from("attendance").select("id").eq("user_id", user.id).maybeSingle(),
       supabase.from("refreshment").select("id").eq("user_id", user.id).maybeSingle(),
@@ -505,7 +617,9 @@ app.post("/my-ticket", async (req, res) => {
       success: true,
       user: {
         id: user.id, name: user.name, college_name: user.college_name,
-        email: user.email, phone: user.phone, event_id: user.event_id, qrData,
+        email: user.email, phone: user.phone, event_names: user.event_names, qrData,
+        photo: user.photo,
+        team_members: user.team_members,
         is_attended: !!attRes.data, is_refreshment: !!refRes.data, is_food: !!foodRes.data,
       },
     });
@@ -559,7 +673,7 @@ const fs = require("fs");
 const WINNERS_FILE = path.join(__dirname, "winners.json");
 
 /* ── EVENT WINNERS ── */
-app.post("/api/event-winners", async (req, res) => {
+app.post("/api/event-winners", authenticateAdmin, async (req, res) => {
   const { event_id, first_place, second_place, third_place } = req.body;
   if (!event_id) return res.json({ success: false, message: "event_id is required." });
 
@@ -604,7 +718,7 @@ app.get("/api/all-event-winners", async (_req, res) => {
   res.json({ success: true, data: data || [] });
 });
 
-app.delete("/api/all-event-winners", async (_req, res) => {
+app.delete("/api/all-event-winners", authenticateAdmin, async (_req, res) => {
   // Pass an empty eq/neq condition to ensure all rows are deleted, or delete by id > 0
   const { error } = await supabase
     .from("event_winners")

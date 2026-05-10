@@ -22,7 +22,11 @@ function AdminDashboard() {
   // ── Fetch stats ───────────────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
     try {
-      const res  = await fetch(`${API_BASE_URL}/admin/dashboard-stats`);
+      const res  = await fetch(`${API_BASE_URL}/admin/dashboard-stats`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem("adminToken")}`
+        }
+      });
       const data = await res.json();
       if (data.success) {
         setStats(data.stats);
@@ -41,19 +45,66 @@ function AdminDashboard() {
 
   // ── Excel Export ──────────────────────────────────────────────────────────
   const exportToExcel = () => {
-    const rows = users.map((u, i) => ({
-      "#":           i + 1,
-      "Name":        u.name,
-      "College":     u.college_name,
-      "Phone":       u.phone,
-      "Email":       u.email,
-      "Event ID":    u.event_id,
-      "Registered":  new Date(u.created_at).toLocaleString(),
-    }));
+    const rows = users.map((u, i) => {
+      let teamMembersStr = "Solo";
+      try {
+        if (u.team_members) {
+          const parsed = typeof u.team_members === 'string' ? JSON.parse(u.team_members) : u.team_members;
+          const allMembers = Object.values(parsed).flat().filter(m => m && m.trim());
+          if (allMembers.length > 0) teamMembersStr = allMembers.join(", ");
+        }
+      } catch (e) { console.error("Export parse error:", e); }
+
+      return {
+        "#":           i + 1,
+        "Name":        u.name,
+        "College":     u.college_name,
+        "Phone":       u.phone,
+        "Email":       u.email,
+        "Events":      u.event_names,
+        "Team Members": teamMembersStr,
+        "Registered":  new Date(u.created_at).toLocaleString(),
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Participants");
     XLSX.writeFile(wb, `SympoTech_Participants_${Date.now()}.xlsx`);
+  };
+
+  const exportToCSV = () => {
+    const rows = users.map((u, i) => {
+      let teamMembersStr = "Solo";
+      try {
+        if (u.team_members) {
+          const parsed = typeof u.team_members === 'string' ? JSON.parse(u.team_members) : u.team_members;
+          const allMembers = Object.values(parsed).flat().filter(m => m && m.trim());
+          if (allMembers.length > 0) teamMembersStr = allMembers.join(", ");
+        }
+      } catch (e) { console.error("Export parse error:", e); }
+
+      return {
+        "S.No":        i + 1,
+        "Name":        u.name,
+        "College":     u.college_name,
+        "Phone":       u.phone,
+        "Email":       u.email,
+        "Events":      u.event_names,
+        "Team Members": teamMembersStr,
+        "Registration Date": new Date(u.created_at).toLocaleString(),
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `SympoTech_Participants_${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // ── Chart data ────────────────────────────────────────────────────────────
@@ -106,8 +157,11 @@ function AdminDashboard() {
             )}
           </div>
           <div className="header-actions">
+            <button onClick={exportToCSV} className="primary-button action-btn" style={{ background: "var(--secondary)" }}>
+              📄 <span className="btn-text">CSV</span>
+            </button>
             <button onClick={exportToExcel} className="primary-button action-btn">
-              📥 <span className="btn-text">Export</span>
+              📥 <span className="btn-text">Excel</span>
             </button>
             <button onClick={() => navigate("/scanner")} className="secondary-button action-btn">
               📷 <span className="btn-text">Scanner</span>
@@ -188,7 +242,7 @@ function AdminDashboard() {
                 <table className="participants-table">
                   <thead>
                     <tr>
-                      {["#", "Name", "College", "Phone", "Email", "Registered"].map((h) => (
+                      {["#", "Name", "College", "Events", "Team Members", "Registered"].map((h) => (
                         <th key={h}>{h}</th>
                       ))}
                     </tr>
@@ -197,10 +251,22 @@ function AdminDashboard() {
                     {users.map((u, i) => (
                       <tr key={u.id}>
                         <td className="col-hash">{i + 1}</td>
-                        <td className="col-name">{u.name}</td>
+                        <td className="col-name">
+                          {u.name}
+                          <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{u.email}</div>
+                        </td>
                         <td className="col-college">{u.college_name}</td>
-                        <td className="col-phone">{u.phone}</td>
-                        <td className="col-email">{u.email}</td>
+                        <td className="col-events" style={{ maxWidth: "150px", fontSize: "11px" }}>{u.event_names}</td>
+                        <td className="col-team" style={{ maxWidth: "150px", fontSize: "11px", color: "var(--primary)" }}>
+                          {(() => {
+                            try {
+                              if (!u.team_members) return "Solo";
+                              const parsed = typeof u.team_members === 'string' ? JSON.parse(u.team_members) : u.team_members;
+                              const allMembers = Object.values(parsed).flat().filter(m => m && m.trim());
+                              return allMembers.length > 0 ? allMembers.join(", ") : "Solo";
+                            } catch { return "Solo"; }
+                          })()}
+                        </td>
                         <td className="col-date">{new Date(u.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}

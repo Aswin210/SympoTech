@@ -17,6 +17,8 @@ const About              = lazy(() => import("./pages/About"));
 const Winners            = lazy(() => import("./pages/Winners"));
 const AdminPublishWinners= lazy(() => import("./pages/AdminPublishWinners"));
 const MyTicket           = lazy(() => import("./pages/MyTicket"));
+// eslint-disable-next-line
+const Cart               = lazy(() => import("./pages/Cart"));
 
 /**
  * Loading Fallback Component
@@ -56,7 +58,7 @@ function App() {
   return (
     <Router>
       <Navbar theme={theme} toggleTheme={toggleTheme} />
-      <main style={{ minHeight: "100vh", paddingTop: "100px" }}>
+      <main className="app-main">
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -73,6 +75,7 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/winners" element={<Winners />} />
             <Route path="/my-ticket" element={<MyTicket />} />
+            <Route path="/cart" element={<Cart />} />
           </Routes>
         </Suspense>
       </main>
