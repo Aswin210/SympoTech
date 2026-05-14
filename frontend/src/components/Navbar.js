@@ -51,6 +51,7 @@ function Navbar({ theme, toggleTheme }) {
             </NavLink>
             <NavLink to="/winners" className={({ isActive }) => "sympo-link" + (isActive ? " active" : "")} style={{ color: "var(--warning)" }}>Winners 🏆</NavLink>
             <NavLink to="/feedback" className={({ isActive }) => "sympo-link" + (isActive ? " active" : "")}>Feedback</NavLink>
+            <NavLink to="/event-radar" className={({ isActive }) => "sympo-link" + (isActive ? " active" : "")} style={{ color: "var(--primary)" }}>Radar 📡</NavLink>
             <NavLink to="/about" className={({ isActive }) => "sympo-link" + (isActive ? " active" : "")}>About</NavLink>
           </div>
           
@@ -94,6 +95,7 @@ function Navbar({ theme, toggleTheme }) {
           </Link>
           <Link to="/winners" onClick={closeMenu} className="secondary-button mobile-w-full" style={{ color: "#FFD700", borderColor: "rgba(255, 215, 0, 0.3)" }}>🏆 Winners</Link>
           <Link to="/feedback" onClick={closeMenu} className="secondary-button mobile-w-full">💬 Feedback</Link>
+          <Link to="/event-radar" onClick={closeMenu} className="secondary-button mobile-w-full" style={{ color: "var(--primary)", borderColor: "var(--primary)" }}>📡 Live Radar</Link>
           <Link to="/about" onClick={closeMenu} className="secondary-button mobile-w-full">ℹ️ About Us</Link>
           <Link to="/admin-login" onClick={closeMenu} className="primary-button mobile-w-full" style={{ marginTop: "20px" }}>🔐 Admin Portal</Link>
           
@@ -149,7 +151,7 @@ function Navbar({ theme, toggleTheme }) {
           .sympo-mobile-menu {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
           }
         }
 

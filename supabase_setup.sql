@@ -10,13 +10,26 @@ CREATE TABLE IF NOT EXISTS events (
     category TEXT, -- 'Technical' or 'Non-Technical'
     is_team_event BOOLEAN DEFAULT FALSE,
     max_team_size INTEGER DEFAULT 1,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    status TEXT DEFAULT 'upcoming', -- 'upcoming', 'ongoing', 'completed'
+    start_time TEXT, -- e.g., '10:30 AM'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_event_name UNIQUE (name)
 );
 
 -- Ensure team columns exist if table was already created
 ALTER TABLE events ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS is_team_event BOOLEAN DEFAULT FALSE;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS max_team_size INTEGER DEFAULT 1;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'upcoming';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS start_time TEXT;
+
+-- Add unique constraint if not exists
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_event_name') THEN
+        ALTER TABLE events ADD CONSTRAINT unique_event_name UNIQUE (name);
+    END IF;
+END $$;
 
 -- 2. Users Table
 CREATE TABLE IF NOT EXISTS users (
@@ -81,11 +94,14 @@ CREATE TABLE IF NOT EXISTS feedback (
     id SERIAL PRIMARY KEY,
     user_id INTEGER,
     user_name TEXT,
+    college_name TEXT,
     event_name TEXT,
     rating INTEGER,
     comment TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS college_name TEXT;
 
 -- 6. Refreshment Table (Stage 2)
 CREATE TABLE IF NOT EXISTS refreshment (
@@ -149,8 +165,7 @@ CREATE TABLE IF NOT EXISTS non_technical_registrations (
 
 ALTER TABLE non_technical_registrations ADD COLUMN IF NOT EXISTS team_members TEXT;
 
--- Sample Events (Cleaned up and synchronized with frontend)
-DELETE FROM events;
+-- Sample Events (Safe Upsert)
 INSERT INTO events (name, description, venue, category) VALUES 
 -- Technical Events
 ('Project Presentation', 'Showcase your technical projects', 'Room 107', 'Technical'),
@@ -190,4 +205,8 @@ INSERT INTO events (name, description, venue, category) VALUES
 ('Rangoli', 'Traditional floor art contest', 'Entrance Area', 'Non-Technical'),
 ('Mehendi', 'Traditional henna art contest', 'Room 104', 'Non-Technical'),
 ('Dumb Charades', 'Act out the movie names', 'Room 111', 'Non-Technical'),
-('Open Mic', 'Share your talent on stage', 'Auditorium', 'Non-Technical');
+('Open Mic', 'Share your talent on stage', 'Auditorium', 'Non-Technical')
+ON CONFLICT (name) DO UPDATE SET 
+    description = EXCLUDED.description,
+    venue = EXCLUDED.venue,
+    category = EXCLUDED.category;

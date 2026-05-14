@@ -20,6 +20,7 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
  */
 function Feedback() {
   const [userName,     setUserName]     = useState("");
+  const [collegeName,  setCollegeName]  = useState("");
   const [userId,       setUserId]       = useState("");
   const [eventName,    setEventName]    = useState("");
   const [rating,       setRating]       = useState(5);
@@ -46,7 +47,7 @@ function Feedback() {
 
   const submitFeedback = async (e) => {
     e.preventDefault();
-    if (!userName || !userId || !eventName || !comment) {
+    if (!userName || !collegeName || !userId || !eventName || !comment) {
       showToast("Please fill in all fields before submitting.", "warning");
       return;
     }
@@ -54,6 +55,7 @@ function Feedback() {
     try {
       const res = await axios.post(`${API_BASE_URL}/api/feedback`, {
         user_name: userName,
+        college_name: collegeName,
         user_id:   Number(userId),
         event_name: eventName,
         rating:    Number(rating),
@@ -61,7 +63,7 @@ function Feedback() {
       });
       if (res.data.success) {
         setSubmitted(true);
-        setUserName(""); setUserId(""); setEventName(""); setRating(5); setComment("");
+        setUserName(""); setCollegeName(""); setUserId(""); setEventName(""); setRating(5); setComment("");
         loadFeedback();
         showToast("Thank you! Your feedback was submitted successfully. 🎉", "success");
         setTimeout(() => setSubmitted(false), 5000);
@@ -142,6 +144,11 @@ function Feedback() {
               <div className="form-group">
                 <label>FULL NAME</label>
                 <input className="premium-input" placeholder="Your Name" value={userName} onChange={(e) => setUserName(e.target.value)} />
+              </div>
+
+              <div className="form-group">
+                <label>COLLEGE NAME</label>
+                <input className="premium-input" placeholder="Your College" value={collegeName} onChange={(e) => setCollegeName(e.target.value)} />
               </div>
 
               <div className="form-row">
@@ -225,7 +232,7 @@ function Feedback() {
                         </div>
                         <div className="user-info">
                           <div className="user-name">{fb.user_name}</div>
-                          <div className="user-event">{fb.event_name}</div>
+                          <div className="user-event">{fb.event_name} • {fb.college_name}</div>
                         </div>
                       </div>
                       <div className="star-rating">

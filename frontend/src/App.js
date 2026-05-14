@@ -17,6 +17,7 @@ const About              = lazy(() => import("./pages/About"));
 const Winners            = lazy(() => import("./pages/Winners"));
 const AdminPublishWinners= lazy(() => import("./pages/AdminPublishWinners"));
 const MyTicket           = lazy(() => import("./pages/MyTicket"));
+const EventRadar         = lazy(() => import("./pages/EventRadar"));
 // eslint-disable-next-line
 const Cart               = lazy(() => import("./pages/Cart"));
 
@@ -75,6 +76,7 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/winners" element={<Winners />} />
             <Route path="/my-ticket" element={<MyTicket />} />
+            <Route path="/event-radar" element={<EventRadar />} />
             <Route path="/cart" element={<Cart />} />
           </Routes>
         </Suspense>

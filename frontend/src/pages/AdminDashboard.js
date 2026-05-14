@@ -11,6 +11,7 @@ function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats]       = useState({ total: 0, attended: 0, refreshment: 0, food: 0 });
   const [users, setUsers]       = useState([]);
+  const [events, setEvents]     = useState([]);
   const [loading, setLoading]   = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
 
@@ -37,11 +38,49 @@ function AdminDashboard() {
     finally { setLoading(false); }
   }, []);
 
+  const fetchEvents = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/events`);
+      const data = await res.json();
+      if (data.success) setEvents(data.data);
+    } catch (err) { console.error("Error fetching events:", err); }
+  }, []);
+
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 10000); // auto-refresh every 10 s
+    fetchEvents();
+    const interval = setInterval(() => {
+      fetchStats();
+      fetchEvents();
+    }, 15000); 
     return () => clearInterval(interval);
-  }, [fetchStats]);
+  }, [fetchStats, fetchEvents]);
+
+  const updateEventStatus = async (eventId, field, value) => {
+    const event = events.find(e => e.id === eventId);
+    if (!event) return;
+
+    const updatedEvent = { ...event, [field]: value };
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/update-event`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("adminToken")}`
+        },
+        body: JSON.stringify(updatedEvent)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEvents(prev => prev.map(e => e.id === eventId ? updatedEvent : e));
+      } else {
+        alert("Failed to update: " + data.message);
+      }
+    } catch (err) {
+      console.error("Update error:", err);
+    }
+  };
 
   // ── Excel Export ──────────────────────────────────────────────────────────
   const exportToExcel = () => {
@@ -275,6 +314,72 @@ function AdminDashboard() {
                 {users.length === 0 && (
                   <div className="empty-table">No participants yet.</div>
                 )}
+              </div>
+            </div>
+
+            {/* Event Radar Management */}
+            <div className="glass-card table-card" style={{ marginTop: "32px" }}>
+              <div className="table-header">
+                <h3 className="section-title">📡 Event Radar Management ({events.length})</h3>
+                <p style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>Manage live status and venues</p>
+              </div>
+              <div className="table-container">
+                <table className="participants-table">
+                  <thead>
+                    <tr>
+                      <th>Event Name</th>
+                      <th>Category</th>
+                      <th>Venue</th>
+                      <th>Time</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {events.map((e) => (
+                      <tr key={e.id}>
+                        <td className="col-name">{e.name}</td>
+                        <td style={{ fontSize: "11px", color: "var(--text-secondary)" }}>{e.category}</td>
+                        <td>
+                          <input 
+                            type="text" 
+                            defaultValue={e.venue} 
+                            onBlur={(evt) => updateEventStatus(e.id, "venue", evt.target.value)}
+                            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "4px 8px", borderRadius: "4px", fontSize: "12px", width: "100px" }}
+                          />
+                        </td>
+                        <td>
+                          <input 
+                            type="text" 
+                            defaultValue={e.start_time} 
+                            placeholder="e.g. 10:30 AM"
+                            onBlur={(evt) => updateEventStatus(e.id, "start_time", evt.target.value)}
+                            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "4px 8px", borderRadius: "4px", fontSize: "12px", width: "100px" }}
+                          />
+                        </td>
+                        <td>
+                          <select 
+                            value={e.status || "upcoming"} 
+                            onChange={(evt) => updateEventStatus(e.id, "status", evt.target.value)}
+                            style={{ 
+                              background: "rgba(255,255,255,0.08)", 
+                              border: "1px solid var(--border)", 
+                              color: "#fff", 
+                              padding: "6px 10px", 
+                              borderRadius: "6px", 
+                              fontSize: "12px",
+                              cursor: "pointer",
+                              outline: "none"
+                            }}
+                          >
+                            <option value="upcoming" style={{ background: "#18181b", color: "#fff" }}>Upcoming</option>
+                            <option value="ongoing" style={{ background: "#18181b", color: "#fff" }}>Ongoing</option>
+                            <option value="completed" style={{ background: "#18181b", color: "#fff" }}>Completed</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </>

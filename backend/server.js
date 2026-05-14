@@ -583,6 +583,20 @@ app.post("/events", async (req, res) => {
   res.json({ success: true, id: data.id });
 });
 
+/* ── ADMIN: UPDATE EVENT ── */
+app.post("/admin/update-event", authenticateAdmin, async (req, res) => {
+  const { id, name, venue, status, date, description, start_time } = req.body;
+  if (!id) return res.json({ success: false, message: "Event ID required." });
+
+  const { error } = await supabase
+    .from("events")
+    .update({ name, venue, status, date, description, start_time })
+    .eq("id", id);
+
+  if (error) return res.json({ success: false, message: error.message });
+  res.json({ success: true, message: "Event updated successfully." });
+});
+
 /* ── TRANSACTION HISTORY ── */
 app.get("/transaction-history", async (_req, res) => {
   const { data, error } = await supabase
@@ -629,6 +643,71 @@ app.post("/my-ticket", async (req, res) => {
   }
 });
 
+/* ── CERTIFICATES LOOKUP ── */
+app.post("/api/certificates", async (req, res) => {
+  const { identifier } = req.body;
+  if (!identifier) return res.json({ success: false, message: "Email or phone required." });
+  try {
+    const { data: users, error } = await supabase
+      .from("users")
+      .select("*")
+      .or(`email.eq.${identifier},phone.eq.${identifier}`)
+      .eq("payment_status", "approved");
+
+    if (error || !users || users.length === 0) {
+      return res.json({ success: false, message: "No registration found. Check your email/phone." });
+    }
+    const user = users[0];
+
+    // Check attendance for participant certificates
+    const { data: attendanceData } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    let participantEvents = [];
+    if (attendanceData && attendanceData.event_names) {
+      participantEvents = attendanceData.event_names.split(",").map(e => e.trim());
+    }
+
+    // Check winners for winner certificates
+    const { data: winnersData } = await supabase
+      .from("event_winners")
+      .select("*, events(name)");
+      
+    let winnerEvents = [];
+    if (winnersData) {
+      winnersData.forEach(w => {
+        // Name format in DB is often "Name | Dept | College", so we check if the user's name is in it
+        const userNameRegex = new RegExp(user.name, 'i');
+        let position = null;
+        if (w.first_place && userNameRegex.test(w.first_place)) position = "1st Place";
+        else if (w.second_place && userNameRegex.test(w.second_place)) position = "2nd Place";
+        else if (w.third_place && userNameRegex.test(w.third_place)) position = "3rd Place";
+
+        if (position && w.events && w.events.name) {
+          winnerEvents.push({ event_name: w.events.name, position });
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        name: user.name,
+        college_name: user.college_name,
+        participantEvents,
+        winnerEvents
+      }
+    });
+
+  } catch (err) {
+    console.error("Certificate lookup error:", err);
+    res.json({ success: false, message: "Server error." });
+  }
+});
+
 /* ── VERIFY USER (QR scan) ── */
 app.get("/verify-user/:id", async (req, res) => {
   const { data: user, error } = await supabase
@@ -647,15 +726,18 @@ app.get("/verify-user/:id", async (req, res) => {
 
 /* ── FEEDBACK ── */
 app.post("/api/feedback", async (req, res) => {
-  const { user_name, user_id, event_name, rating, comment } = req.body;
-  if (!user_name || !user_id || !event_name || !rating || !comment)
+  const { user_name, college_name, user_id, event_name, rating, comment } = req.body;
+  if (!user_name || !college_name || !user_id || !event_name || !rating || !comment)
     return res.status(400).json({ success: false, message: "All fields required." });
 
   const { error } = await supabase
     .from("feedback")
-    .insert({ user_name, user_id, event_name, rating, comment });
+    .insert({ user_name, college_name, user_id, event_name, rating, comment });
 
-  if (error) return res.status(500).json({ success: false });
+  if (error) {
+    console.error("Feedback DB error:", error);
+    return res.status(500).json({ success: false });
+  }
   res.json({ success: true, message: "Feedback submitted." });
 });
 
