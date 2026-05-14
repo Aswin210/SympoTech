@@ -3,6 +3,7 @@ const express  = require("express");
 const cors     = require("cors");
 const supabase = require("./db");
 const path     = require("path");
+const fs       = require("fs");
 const crypto   = require("crypto");
 const axios    = require("axios");
 const Razorpay   = require("razorpay");
@@ -61,7 +62,15 @@ const scanLimiter  = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: tr
 const loginLimiter = rateLimit({ windowMs: 15 * 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
 
 /* ── MIDDLEWARE ── */
-app.use(cors());
+const corsOptions = {
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use("/webhook/razorpay", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
@@ -588,13 +597,81 @@ app.post("/admin/update-event", authenticateAdmin, async (req, res) => {
   const { id, name, venue, status, date, description, start_time } = req.body;
   if (!id) return res.json({ success: false, message: "Event ID required." });
 
+  console.log(`📝 Updating event ${id}:`, { name, venue, status, start_time });
   const { error } = await supabase
     .from("events")
     .update({ name, venue, status, date, description, start_time })
     .eq("id", id);
 
-  if (error) return res.json({ success: false, message: error.message });
+  if (error) {
+    console.error("❌ Event update error:", error);
+    return res.json({ success: false, message: error.message });
+  }
   res.json({ success: true, message: "Event updated successfully." });
+});
+
+/* ── NOTIFICATIONS (Local File Storage) ── */
+const NOTIF_FILE = path.join(__dirname, 'notifications.json');
+
+app.post("/admin/notifications", authenticateAdmin, async (req, res) => {
+  const { message, type } = req.body;
+  if (!message) return res.json({ success: false, message: "Message is required." });
+
+  try {
+    let notifications = [];
+    if (fs.existsSync(NOTIF_FILE)) {
+      notifications = JSON.parse(fs.readFileSync(NOTIF_FILE, 'utf8'));
+    }
+
+    const newNotif = {
+      id: Date.now(),
+      message,
+      type: type || "info",
+      created_at: new Date().toISOString()
+    };
+
+    notifications.unshift(newNotif); // Add to top
+    fs.writeFileSync(NOTIF_FILE, JSON.stringify(notifications.slice(0, 20), null, 2)); // Keep last 20
+
+    res.json({ success: true, data: newNotif });
+  } catch (err) {
+    console.error("❌ Local notif error:", err);
+    res.json({ success: false, message: "Failed to save notification locally." });
+  }
+});
+
+app.get("/notifications", async (_req, res) => {
+  try {
+    if (fs.existsSync(NOTIF_FILE)) {
+      const data = fs.readFileSync(NOTIF_FILE, 'utf8');
+      return res.json(JSON.parse(data));
+    }
+    res.json([]);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.post("/admin/notifications/delete/:id", authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (fs.existsSync(NOTIF_FILE)) {
+      let notifications = JSON.parse(fs.readFileSync(NOTIF_FILE, 'utf8'));
+      const originalLength = notifications.length;
+      notifications = notifications.filter(n => String(n.id) !== String(id));
+      
+      if (notifications.length === originalLength) {
+        return res.status(404).json({ success: false, message: "Notification not found." });
+      }
+
+      fs.writeFileSync(NOTIF_FILE, JSON.stringify(notifications, null, 2));
+      return res.json({ success: true, message: "Notification deleted." });
+    }
+    res.status(404).json({ success: false, message: "Not found." });
+  } catch (err) {
+    console.error("❌ Delete error:", err);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
 });
 
 /* ── TRANSACTION HISTORY ── */
@@ -751,7 +828,6 @@ app.get("/api/feedback", async (_req, res) => {
   res.json(data);
 });
 
-const fs = require("fs");
 const WINNERS_FILE = path.join(__dirname, "winners.json");
 
 /* ── EVENT WINNERS ── */

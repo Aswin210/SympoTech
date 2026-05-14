@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Doughnut } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import * as XLSX from "xlsx";
+import axios from "axios";
 import API_BASE_URL from "../api";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -14,6 +15,10 @@ function AdminDashboard() {
   const [events, setEvents]     = useState([]);
   const [loading, setLoading]   = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [notifMessage, setNotifMessage] = useState("");
+  const [notifType, setNotifType] = useState("info");
+  const [sendingNotif, setSendingNotif] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -42,27 +47,51 @@ function AdminDashboard() {
     try {
       const res = await fetch(`${API_BASE_URL}/events`);
       const data = await res.json();
-      if (data.success) setEvents(data.data);
+      if (data.success) {
+        // Only update if not currently editing to prevent jumpy inputs
+        setEvents(data.data);
+      }
     } catch (err) { console.error("Error fetching events:", err); }
+  }, []);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setNotifications(data);
+      }
+    } catch (err) { console.error("Error fetching notifications:", err); }
   }, []);
 
   useEffect(() => {
     fetchStats();
     fetchEvents();
+    fetchNotifications();
     const interval = setInterval(() => {
       fetchStats();
       fetchEvents();
+      fetchNotifications();
     }, 15000); 
     return () => clearInterval(interval);
-  }, [fetchStats, fetchEvents]);
+  }, [fetchStats, fetchEvents, fetchNotifications]);
+
+  const handleLocalEventChange = (eventId, field, value) => {
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, [field]: value } : e));
+  };
 
   const updateEventStatus = async (eventId, field, value) => {
     const event = events.find(e => e.id === eventId);
     if (!event) return;
 
+    // 1. Calculate the updated event object
     const updatedEvent = { ...event, [field]: value };
 
+    // 2. Update local state immediately for a snappier feel
+    setEvents(prev => prev.map(e => e.id === eventId ? updatedEvent : e));
+
     try {
+      // 3. Send update to server
       const res = await fetch(`${API_BASE_URL}/admin/update-event`, {
         method: "POST",
         headers: {
@@ -72,13 +101,60 @@ function AdminDashboard() {
         body: JSON.stringify(updatedEvent)
       });
       const data = await res.json();
-      if (data.success) {
-        setEvents(prev => prev.map(e => e.id === eventId ? updatedEvent : e));
-      } else {
+      if (!data.success) {
         alert("Failed to update: " + data.message);
+        fetchEvents(); // Revert on failure
       }
     } catch (err) {
       console.error("Update error:", err);
+      alert("Network error updating event.");
+      fetchEvents(); // Revert on failure
+    }
+  };
+
+  const sendBroadcast = async (e) => {
+    e.preventDefault();
+    if (!notifMessage.trim()) return;
+    setSendingNotif(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/notifications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("adminToken")}`
+        },
+        body: JSON.stringify({ message: notifMessage, type: notifType })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("📢 Notification sent successfully!");
+        setNotifMessage("");
+        fetchNotifications(); // Refresh list
+      } else {
+        alert("Failed to send: " + data.message);
+      }
+    } catch (err) { console.error("Notif error:", err); }
+    finally { setSendingNotif(false); }
+  };
+
+  const deleteNotification = async (id) => {
+    if (!window.confirm("Permanently delete this notification for all users?")) return;
+    
+    const token = localStorage.getItem("adminToken");
+    try {
+      const res = await axios.post(`${API_BASE_URL}/admin/notifications/delete/${id}`, {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.data.success) {
+        setNotifications(prev => prev.filter(n => String(n.id) !== String(id)));
+      } else {
+        alert("❌ " + (res.data.message || "Failed to delete"));
+      }
+    } catch (err) {
+      console.error("❌ Delete failed:", err);
+      const errMsg = err.response?.data?.message || err.message || "Connection error";
+      alert("❌ " + errMsg);
     }
   };
 
@@ -337,43 +413,39 @@ function AdminDashboard() {
                   <tbody>
                     {events.map((e) => (
                       <tr key={e.id}>
-                        <td className="col-name">{e.name}</td>
-                        <td style={{ fontSize: "11px", color: "var(--text-secondary)" }}>{e.category}</td>
+                        <td className="col-name" style={{ fontWeight: "800", color: "var(--primary)" }}>{e.name}</td>
+                        <td style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "700" }}>{e.category}</td>
                         <td>
                           <input 
                             type="text" 
-                            defaultValue={e.venue} 
+                            value={e.venue || ""} 
+                            placeholder="TBA"
+                            onChange={(evt) => handleLocalEventChange(e.id, "venue", evt.target.value)}
                             onBlur={(evt) => updateEventStatus(e.id, "venue", evt.target.value)}
-                            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "4px 8px", borderRadius: "4px", fontSize: "12px", width: "100px" }}
+                            className="admin-input"
+                            style={{ width: "140px" }}
                           />
                         </td>
                         <td>
                           <input 
                             type="text" 
-                            defaultValue={e.start_time} 
+                            value={e.start_time || ""} 
                             placeholder="e.g. 10:30 AM"
+                            onChange={(evt) => handleLocalEventChange(e.id, "start_time", evt.target.value)}
                             onBlur={(evt) => updateEventStatus(e.id, "start_time", evt.target.value)}
-                            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "4px 8px", borderRadius: "4px", fontSize: "12px", width: "100px" }}
+                            className="admin-input"
+                            style={{ width: "120px" }}
                           />
                         </td>
                         <td>
                           <select 
                             value={e.status || "upcoming"} 
                             onChange={(evt) => updateEventStatus(e.id, "status", evt.target.value)}
-                            style={{ 
-                              background: "rgba(255,255,255,0.08)", 
-                              border: "1px solid var(--border)", 
-                              color: "#fff", 
-                              padding: "6px 10px", 
-                              borderRadius: "6px", 
-                              fontSize: "12px",
-                              cursor: "pointer",
-                              outline: "none"
-                            }}
+                            className="admin-select"
                           >
-                            <option value="upcoming" style={{ background: "#18181b", color: "#fff" }}>Upcoming</option>
-                            <option value="ongoing" style={{ background: "#18181b", color: "#fff" }}>Ongoing</option>
-                            <option value="completed" style={{ background: "#18181b", color: "#fff" }}>Completed</option>
+                            <option value="upcoming">Upcoming</option>
+                            <option value="ongoing">Ongoing</option>
+                            <option value="completed">Completed</option>
                           </select>
                         </td>
                       </tr>
@@ -381,6 +453,66 @@ function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Notification Broadcast */}
+            <div className="glass-card table-card" style={{ marginTop: "32px" }}>
+              <div className="table-header">
+                <h3 className="section-title">📢 Broadcast Live Notification</h3>
+                <p style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>Send real-time updates to all users</p>
+              </div>
+              <form onSubmit={sendBroadcast} className="notif-form" style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "16px" }}>
+                <input 
+                  type="text" 
+                  value={notifMessage}
+                  onChange={(e) => setNotifMessage(e.target.value)}
+                  placeholder="Type your announcement here..."
+                  className="premium-input"
+                  style={{ flex: 1, minWidth: "250px" }}
+                />
+                <select 
+                  value={notifType} 
+                  onChange={(e) => setNotifType(e.target.value)}
+                  className="admin-select"
+                  style={{ height: "54px" }}
+                >
+                  <option value="info">ℹ️ Info</option>
+                  <option value="success">✅ Success</option>
+                  <option value="warning">⚠️ Warning</option>
+                  <option value="danger">🚨 Alert</option>
+                </select>
+                <button type="submit" disabled={sendingNotif} className="primary-button" style={{ padding: "0 32px", height: "54px" }}>
+                  {sendingNotif ? "Sending..." : "🚀 Broadcast"}
+                </button>
+              </form>
+
+              {/* Notification History */}
+              {notifications.length > 0 && (
+                <div className="notif-history" style={{ marginTop: "24px", borderTop: "1px solid var(--border)", paddingTop: "16px" }}>
+                  <h4 style={{ fontSize: "14px", fontWeight: "800", marginBottom: "12px", color: "var(--text-secondary)" }}>Sent Notifications</h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {notifications.map(n => (
+                      <div key={n.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.02)", padding: "10px 16px", borderRadius: "10px", border: "1px solid var(--border)" }}>
+                        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                          <span style={{ fontSize: "16px" }}>
+                            {n.type === 'success' ? '✅' : n.type === 'warning' ? '⚠️' : n.type === 'danger' ? '🚨' : 'ℹ️'}
+                          </span>
+                          <div>
+                            <p style={{ fontSize: "13px", fontWeight: "600", margin: 0 }}>{n.message}</p>
+                            <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>{new Date(n.created_at).toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => deleteNotification(n.id)}
+                          style={{ background: "rgba(244, 63, 94, 0.1)", border: "none", color: "var(--danger)", padding: "6px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "700" }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -450,6 +582,41 @@ function AdminDashboard() {
         }
         
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+
+        .admin-input {
+          background: var(--bg-surface);
+          border: 1px solid var(--border);
+          color: var(--text-primary);
+          padding: 6px 10px;
+          border-radius: 6px;
+          font-size: 12px;
+          outline: none;
+          transition: all 0.2s ease;
+        }
+        .admin-input:focus {
+          border-color: var(--primary);
+          background: var(--bg-card-hover);
+          box-shadow: 0 0 0 2px var(--primary-glow);
+        }
+        .admin-select {
+          background: var(--bg-surface);
+          border: 1px solid var(--border);
+          color: var(--text-primary);
+          padding: 6px 10px;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
+          outline: none;
+          transition: all 0.2s ease;
+        }
+        .admin-select:hover {
+          background: var(--bg-card-hover);
+          border-color: var(--text-secondary);
+        }
+        .admin-select option {
+          background: var(--bg-card);
+          color: var(--text-primary);
+        }
       `}</style>
     </div>
   );

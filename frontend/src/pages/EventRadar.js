@@ -8,6 +8,7 @@ import API_BASE_URL from "../api";
 function EventRadar() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetchEvents();
@@ -27,9 +28,15 @@ function EventRadar() {
       .finally(() => setLoading(false));
   };
 
-  const ongoingEvents = events.filter((e) => e.status === "ongoing");
-  const upcomingEvents = events.filter((e) => e.status === "upcoming");
-  const completedEvents = events.filter((e) => e.status === "completed");
+  const filteredEvents = events.filter((e) => 
+    e.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    e.venue?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    e.category?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const ongoingEvents = filteredEvents.filter((e) => e.status?.toLowerCase() === "ongoing");
+  const upcomingEvents = filteredEvents.filter((e) => e.status?.toLowerCase() === "upcoming" || !e.status);
+  const completedEvents = filteredEvents.filter((e) => e.status?.toLowerCase() === "completed");
 
   return (
     <div className="radar-page">
@@ -40,6 +47,22 @@ function EventRadar() {
           <div className="live-indicator">
             <span className="pulse-dot"></span>
             LIVE UPDATES
+          </div>
+
+          <div className="search-container">
+            <div className="search-wrapper">
+              <span className="search-icon">🔍</span>
+              <input 
+                type="text" 
+                placeholder="Search event, room, or category..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="radar-search-input"
+              />
+              {searchQuery && (
+                <button className="clear-search" onClick={() => setSearchQuery("")}>✕</button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -54,7 +77,9 @@ function EventRadar() {
             <section className="radar-section ongoing fade-in">
               <h2 className="section-title"><span className="icon">🔥</span> Happening Now</h2>
               {ongoingEvents.length === 0 ? (
-                <div className="empty-card">No events are currently live.</div>
+                <div className="empty-card">
+                  {searchQuery ? `No ongoing events match "${searchQuery}"` : "No events are currently live."}
+                </div>
               ) : (
                 <div className="event-list">
                   {ongoingEvents.map((event) => (
@@ -68,7 +93,9 @@ function EventRadar() {
             <section className="radar-section upcoming fade-in">
               <h2 className="section-title"><span className="icon">🕒</span> Starting Soon</h2>
               {upcomingEvents.length === 0 ? (
-                <div className="empty-card">Stay tuned for upcoming events.</div>
+                <div className="empty-card">
+                  {searchQuery ? `No upcoming events match "${searchQuery}"` : "Stay tuned for upcoming events."}
+                </div>
               ) : (
                 <div className="event-list">
                   {upcomingEvents.map((event) => (
@@ -82,7 +109,9 @@ function EventRadar() {
             <section className="radar-section completed fade-in">
               <h2 className="section-title"><span className="icon">✅</span> Recently Completed</h2>
               {completedEvents.length === 0 ? (
-                <div className="empty-card">Results will appear here.</div>
+                <div className="empty-card">
+                  {searchQuery ? `No completed events match "${searchQuery}"` : "Results will appear here."}
+                </div>
               ) : (
                 <div className="event-list">
                   {completedEvents.map((event) => (
@@ -110,6 +139,27 @@ function EventRadar() {
         }
         
         .pulse-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 1.5s infinite; }
+
+        .search-container { margin-top: 30px; display: flex; justify-content: center; }
+        .search-wrapper { 
+          position: relative; width: 100%; max-width: 500px; 
+          background: var(--bg-surface); border: 1px solid var(--border);
+          border-radius: 100px; padding: 2px 6px; display: flex; align-items: center;
+          transition: all 0.3s ease; box-shadow: var(--shadow-sm);
+        }
+        .search-wrapper:focus-within { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); transform: translateY(-2px); }
+        .search-icon { margin-left: 15px; font-size: 16px; opacity: 0.6; }
+        .radar-search-input { 
+          width: 100%; background: none; border: none; padding: 12px 15px;
+          color: var(--text-primary); font-size: 15px; font-weight: 600; outline: none;
+        }
+        .clear-search { 
+          background: rgba(255,255,255,0.1); border: none; color: var(--text-secondary);
+          width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+          margin-right: 10px; display: flex; align-items: center; justify-content: center;
+          font-size: 10px; transition: all 0.2s;
+        }
+        .clear-search:hover { background: var(--danger); color: white; }
         
         .radar-grid { display: grid; grid-template-columns: 1fr; gap: 40px; }
         @media (min-width: 1024px) { .radar-grid { grid-template-columns: repeat(3, 1fr); } }
